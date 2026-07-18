@@ -6,9 +6,11 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+const ALLOWED_PAY_SCHEDULES = ['weekly', 'biweekly', 'semi-monthly'];
+
 // POST /api/auth/signup
 router.post('/signup', (req: Request, res: Response): void => {
-  const { email, password, name } = req.body;
+  const { email, password, name, pay_schedule } = req.body;
 
   // Validate input
   if (!email || typeof email !== 'string') {
@@ -33,6 +35,18 @@ router.post('/signup', (req: Request, res: Response): void => {
     return;
   }
 
+  // Validate pay_schedule if provided
+  let schedule = 'biweekly';
+  if (pay_schedule !== undefined) {
+    if (!ALLOWED_PAY_SCHEDULES.includes(pay_schedule)) {
+      res.status(400).json({
+        error: `Invalid pay_schedule. Must be one of: ${ALLOWED_PAY_SCHEDULES.join(', ')}`,
+      });
+      return;
+    }
+    schedule = pay_schedule;
+  }
+
   const db = getDb();
 
   // Check if email already exists
@@ -46,8 +60,8 @@ router.post('/signup', (req: Request, res: Response): void => {
   const passwordHash = bcrypt.hashSync(password, 10);
 
   const result = db.prepare(
-    'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)'
-  ).run(email, passwordHash, name.trim());
+    'INSERT INTO users (email, password_hash, name, pay_schedule) VALUES (?, ?, ?, ?)'
+  ).run(email, passwordHash, name.trim(), schedule);
 
   const userId = result.lastInsertRowid as number;
 
@@ -60,6 +74,7 @@ router.post('/signup', (req: Request, res: Response): void => {
       id: userId,
       email,
       name: name.trim(),
+      pay_schedule: schedule,
     },
   });
 });
@@ -107,8 +122,8 @@ router.get('/me', authMiddleware, (req: AuthRequest, res: Response): void => {
   const db = getDb();
 
   const user = db.prepare(
-    'SELECT id, email, name FROM users WHERE id = ?'
-  ).get(req.userId) as { id: number; email: string; name: string } | undefined;
+    'SELECT id, email, name, pay_schedule FROM users WHERE id = ?'
+  ).get(req.userId) as { id: number; email: string; name: string; pay_schedule: string } | undefined;
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
@@ -120,6 +135,36 @@ router.get('/me', authMiddleware, (req: AuthRequest, res: Response): void => {
       id: user.id,
       email: user.email,
       name: user.name,
+      pay_schedule: user.pay_schedule,
+    },
+  });
+});
+
+// PUT /api/auth/settings — Update user settings (e.g. pay_schedule)
+router.put('/settings', authMiddleware, (req: AuthRequest, res: Response): void => {
+  const { pay_schedule } = req.body;
+
+  if (!pay_schedule || !ALLOWED_PAY_SCHEDULES.includes(pay_schedule)) {
+    res.status(400).json({
+      error: `Invalid pay_schedule. Must be one of: ${ALLOWED_PAY_SCHEDULES.join(', ')}`,
+    });
+    return;
+  }
+
+  const db = getDb();
+
+  db.prepare('UPDATE users SET pay_schedule = ? WHERE id = ?').run(pay_schedule, req.userId!);
+
+  const user = db.prepare(
+    'SELECT id, email, name, pay_schedule FROM users WHERE id = ?'
+  ).get(req.userId!) as { id: number; email: string; name: string; pay_schedule: string };
+
+  res.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      pay_schedule: user.pay_schedule,
     },
   });
 });
