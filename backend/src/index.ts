@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { initDb } from './db';
+import authRoutes from './routes/auth';
 
 dotenv.config({ override: true });
 
@@ -15,10 +16,11 @@ app.use(express.json());
 // Initialize database
 initDb();
 
-// Health check
+// Routes
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+app.use('/api/auth', authRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
