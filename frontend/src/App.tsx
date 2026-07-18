@@ -1,49 +1,27 @@
-import { Routes, Route, Link } from 'react-router-dom';
-
-function Dashboard() {
-  return <h2>Dashboard</h2>;
-}
-
-function Login() {
-  return <h2>Login</h2>;
-}
-
-function Signup() {
-  return <h2>Sign Up</h2>;
-}
-
-function Income() {
-  return <h2>Income</h2>;
-}
-
-function Expenses() {
-  return <h2>Expenses</h2>;
-}
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   return (
-    <div>
-      <nav>
-        <Link to="/">Dashboard</Link>
-        {' | '}
-        <Link to="/login">Login</Link>
-        {' | '}
-        <Link to="/signup">Sign Up</Link>
-        {' | '}
-        <Link to="/income">Income</Link>
-        {' | '}
-        <Link to="/expenses">Expenses</Link>
-      </nav>
-      <main>
-        <h1>PayCheck Planner</h1>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/income" element={<Income />} />
-          <Route path="/expenses" element={<Expenses />} />
-        </Routes>
-      </main>
-    </div>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Catch-all: redirect unknown routes to dashboard (which will redirect to login if needed) */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }
