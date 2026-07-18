@@ -31,6 +31,22 @@ router.get('/', (req: AuthRequest, res: Response): void => {
     frequency: string;
     category: string;
     created_at: string;
+    last_reviewed_at: string | null;
+  }>;
+
+  // Get bill history for the user's bills
+  const billHistory = db
+    .prepare(
+      `SELECT bh.bill_id, bh.amount, bh.recorded_at
+       FROM bill_history bh
+       INNER JOIN bills b ON b.id = bh.bill_id
+       WHERE b.user_id = ?
+       ORDER BY bh.recorded_at ASC`
+    )
+    .all(req.userId!) as Array<{
+    bill_id: number;
+    amount: number;
+    recorded_at: string;
   }>;
 
   // Compute weighted weekly income from shifts
@@ -43,6 +59,7 @@ router.get('/', (req: AuthRequest, res: Response): void => {
     bills,
     weightedWeeklyIncome,
     paySchedule,
+    billHistory,
   });
 
   // Optional severity filter

@@ -378,4 +378,150 @@ describe('generateAlerts', () => {
     expect(imminent.map((a) => a.bill!.name)).toContain('Internet');
     expect(imminent.map((a) => a.bill!.name)).toContain('Phone');
   });
+
+  // ── BILL_INCREASE ─────────────────────────────────────────────
+
+  test('amount increased >10% with history → BILL_INCREASE alert', () => {
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, amount: 150, name: 'Netflix' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+      billHistory: [
+        { bill_id: 1, amount: 100, recorded_at: '2026-06-01' },
+        { bill_id: 1, amount: 110, recorded_at: '2026-07-01' },
+      ],
+    });
+
+    const increaseAlerts = alerts.filter((a) => a.type === 'BILL_INCREASE');
+    expect(increaseAlerts.length).toBe(1);
+    expect(increaseAlerts[0].severity).toBe('warning');
+    expect(increaseAlerts[0].title).toBe('Bill increase detected');
+    expect(increaseAlerts[0].message).toMatch(/Netflix increased from \$110\.00 to \$150\.00/);
+    expect(increaseAlerts[0].percentIncrease).toBe(36);
+    expect(increaseAlerts[0].bill).toBeDefined();
+    expect(increaseAlerts[0].bill!.name).toBe('Netflix');
+  });
+
+  test('amount increased by exactly 10% → no BILL_INCREASE alert', () => {
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, amount: 110, name: 'Netflix' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+      billHistory: [
+        { bill_id: 1, amount: 100, recorded_at: '2026-07-01' },
+      ],
+    });
+
+    const increaseAlerts = alerts.filter((a) => a.type === 'BILL_INCREASE');
+    expect(increaseAlerts.length).toBe(0);
+  });
+
+  test('amount decreased → no BILL_INCREASE alert', () => {
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, amount: 80, name: 'Netflix' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+      billHistory: [
+        { bill_id: 1, amount: 100, recorded_at: '2026-07-01' },
+      ],
+    });
+
+    const increaseAlerts = alerts.filter((a) => a.type === 'BILL_INCREASE');
+    expect(increaseAlerts.length).toBe(0);
+  });
+
+  test('no bill history → no BILL_INCREASE alert', () => {
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, amount: 150, name: 'Netflix' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+    });
+
+    const increaseAlerts = alerts.filter((a) => a.type === 'BILL_INCREASE');
+    expect(increaseAlerts.length).toBe(0);
+  });
+
+  // ── SUBSCRIPTION_REVIEW ───────────────────────────────────────
+
+  test('subscriptions never reviewed → SUBSCRIPTION_REVIEW alert', () => {
+    const alerts = generateAlerts({
+      bills: [
+        bill({ id: 1, name: 'Netflix', amount: 15, category: 'subscriptions' }),
+        bill({ id: 2, name: 'Spotify', amount: 10, category: 'subscriptions' }),
+        bill({ id: 3, name: 'Rent', amount: 500, category: 'rent' }),
+      ],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+    });
+
+    const reviewAlerts = alerts.filter((a) => a.type === 'SUBSCRIPTION_REVIEW');
+    expect(reviewAlerts.length).toBe(1);
+    expect(reviewAlerts[0].severity).toBe('warning');
+    expect(reviewAlerts[0].title).toBe('Review your subscriptions');
+    expect(reviewAlerts[0].subscriptionCount).toBe(2);
+    expect(reviewAlerts[0].totalMonthly).toBe(25);
+    expect(reviewAlerts[0].message).toMatch(/2 subscriptions totaling \$25\.00\/mo/);
+  });
+
+  test('subscriptions reviewed recently → no SUBSCRIPTION_REVIEW alert', () => {
+    const recentlyReviewed = daysFromNow(-5); // 5 days ago
+    const alerts = generateAlerts({
+      bills: [
+        {
+          ...bill({ id: 1, name: 'Netflix', amount: 15, category: 'subscriptions' }),
+          last_reviewed_at: recentlyReviewed,
+        },
+        {
+          ...bill({ id: 2, name: 'Spotify', amount: 10, category: 'subscriptions' }),
+          last_reviewed_at: recentlyReviewed,
+        },
+      ],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+    });
+
+    const reviewAlerts = alerts.filter((a) => a.type === 'SUBSCRIPTION_REVIEW');
+    expect(reviewAlerts.length).toBe(0);
+  });
+
+  test('subscription reviewed 31 days ago → SUBSCRIPTION_REVIEW alert', () => {
+    // today is July 15, so 31+ days ago is June 14 or earlier
+    const alerts = generateAlerts({
+      bills: [
+        {
+          ...bill({ id: 1, name: 'Netflix', amount: 15, category: 'subscriptions' }),
+          last_reviewed_at: '2026-06-14',
+        },
+      ],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+    });
+
+    const reviewAlerts = alerts.filter((a) => a.type === 'SUBSCRIPTION_REVIEW');
+    expect(reviewAlerts.length).toBe(1);
+    expect(reviewAlerts[0].subscriptionCount).toBe(1);
+    expect(reviewAlerts[0].totalMonthly).toBe(15);
+  });
+
+  test('no subscriptions → no SUBSCRIPTION_REVIEW alert', () => {
+    const alerts = generateAlerts({
+      bills: [
+        bill({ id: 1, name: 'Rent', amount: 500, category: 'rent' }),
+        bill({ id: 2, name: 'Groceries', amount: 200, category: 'groceries' }),
+      ],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today: new Date(2026, 6, 15),
+    });
+
+    const reviewAlerts = alerts.filter((a) => a.type === 'SUBSCRIPTION_REVIEW');
+    expect(reviewAlerts.length).toBe(0);
+  });
 });

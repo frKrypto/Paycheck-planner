@@ -41,6 +41,14 @@ function runMigrations(): void {
   } catch {
     // Column already exists — safe to ignore
   }
+
+  // Add last_reviewed_at column to bills
+  try {
+    db.exec(`ALTER TABLE bills ADD COLUMN last_reviewed_at TEXT`);
+    console.log('Migration: added last_reviewed_at column to bills');
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }
 
 function createTables(): void {
@@ -84,6 +92,13 @@ function createTables(): void {
       date TEXT NOT NULL,
       description TEXT DEFAULT '',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS bill_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bill_id INTEGER NOT NULL REFERENCES bills(id),
+      amount REAL NOT NULL,
+      recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
