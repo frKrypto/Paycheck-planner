@@ -7,6 +7,7 @@ import { shiftRoutes, incomeRoutes } from './routes/shifts';
 import billRoutes from './routes/bills';
 import expenseRoutes from './routes/expenses';
 import safeToSpendRoutes from './routes/safeToSpend';
+import alertRoutes from './routes/alerts';
 
 dotenv.config({ override: true });
 
@@ -36,6 +37,7 @@ app.use('/api/income', incomeRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/safe-to-spend', safeToSpendRoutes);
+app.use('/api/alerts', alertRoutes);
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
