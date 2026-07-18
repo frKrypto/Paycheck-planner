@@ -1,34 +1,33 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../auth';
 
 export interface AuthRequest extends Request {
   userId?: number;
 }
 
 /**
- * Placeholder auth middleware.
- * Extracts JWT from the Authorization header and attaches userId to the request.
- * Currently does NOT reject unauthenticated requests — passes through if no token.
+ * Auth middleware — extracts and verifies JWT from the Authorization header.
+ * Attaches userId to the request. Returns 401 if token is missing or invalid.
  */
 export function authMiddleware(
   req: AuthRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ): void {
   const authHeader = req.headers.authorization;
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-
-    try {
-      const secret = process.env.JWT_SECRET || 'dev-secret';
-      const decoded = jwt.verify(token, secret) as { userId: number };
-      req.userId = decoded.userId;
-    } catch {
-      // Token invalid — leave userId undefined
-      // Future: reject with 401 once auth is enforced
-    }
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
   }
 
-  next();
+  const token = authHeader.substring(7);
+
+  try {
+    const decoded = verifyToken(token);
+    req.userId = decoded.userId;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
 }
