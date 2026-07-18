@@ -27,9 +27,20 @@ export function initDb(): Database.Database {
   db.pragma('foreign_keys = ON');
 
   createTables();
+  runMigrations();
 
   console.log(`Database initialized at ${DB_PATH}`);
   return db;
+}
+
+function runMigrations(): void {
+  // Add pay_schedule column if it doesn't exist (safe to run multiple times)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN pay_schedule TEXT DEFAULT 'biweekly'`);
+    console.log('Migration: added pay_schedule column to users');
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }
 
 function createTables(): void {
@@ -39,6 +50,7 @@ function createTables(): void {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
+      pay_schedule TEXT DEFAULT 'biweekly',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
