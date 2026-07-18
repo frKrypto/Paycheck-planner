@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchSafeToSpend, type SafeToSpendResponse } from '../api/safeToSpend';
+import { fetchSafeToSpend, type SafeToSpendResponse, type IncomeVolatility } from '../api/safeToSpend';
 import { fetchIncomeStats, fetchShifts, type IncomeStats, type Shift } from '../api/income';
 import { fetchExpenses, type Expense } from '../api/expenses';
 import { fetchUpcomingBills, type UpcomingBill } from '../api/bills';
@@ -26,6 +26,9 @@ const colors = {
   amber: '#e6a817',
   red: '#c0392b',
   green: '#2d8a5e',
+  blue: '#2563eb',
+  blueLight: '#eef2ff',
+  amberLight: '#fffbeb',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -33,6 +36,18 @@ const safeToSpendColor = (amount: number): string => {
   if (amount >= 20) return colors.green;
   if (amount >= 5) return colors.amber;
   return colors.red;
+};
+
+const bufferConfig: Record<number, { label: string; color: string; bg: string }> = {
+  0.90: { label: '10% buffer', color: colors.green, bg: '#e8f5ee' },
+  0.85: { label: '15% buffer', color: colors.blue, bg: colors.blueLight },
+  0.75: { label: '25% buffer', color: colors.amber, bg: colors.amberLight },
+};
+
+const volatilityConfig: Record<IncomeVolatility, { label: string; color: string }> = {
+  stable: { label: 'Stable', color: colors.green },
+  moderate: { label: 'Moderate', color: colors.blue },
+  volatile: { label: 'Volatile', color: colors.amber },
 };
 
 const categoryColors: Record<string, string> = {
@@ -58,6 +73,16 @@ const formatDate = (dateStr: string): string => {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
+
+/** Normalize the warnings from both `warnings` (array) and `warning` (string) fields. */
+function getWarnings(
+  details: SafeToSpendResponse['details'] | undefined
+): string[] {
+  if (!details) return [];
+  if (details.warnings && details.warnings.length > 0) return details.warnings;
+  if (details.warning) return [details.warning];
+  return [];
+}
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -85,7 +110,7 @@ function StatCard({
 }: {
   title: string;
   value: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   icon: string;
 }) {
   return (
@@ -116,6 +141,32 @@ function CategoryBadge({ category }: { category: string }) {
       }}
     >
       {category}
+    </span>
+  );
+}
+
+/** Small info tooltip rendered as a styled ? icon with title attribute. */
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: colors.border,
+        color: colors.subtle,
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        cursor: 'help',
+        marginLeft: 4,
+        lineHeight: 1,
+      }}
+    >
+      ?
     </span>
   );
 }
@@ -239,10 +290,29 @@ export default function DashboardPage() {
     [shifts, expenses]
   );
 
-  // Derived data
-  const warning = safeToSpendData?.details?.warning;
+  // ── Derived data ────────────────────────────────────────────────────
+  const details = safeToSpendData?.details;
+  const allWarnings = getWarnings(details);
+  // Separate "old" warnings from trend warnings
+  const hasNoIncomeHistory = allWarnings.includes('no_income_history');
+  const hasIncomeBelowBills = allWarnings.includes('income_below_bills');
+  const trendingDown = allWarnings.includes('income_trending_down');
+  const trendingUp = allWarnings.includes('income_trending_up');
+
   const safeToSpendAmount = safeToSpendData?.safeToSpend ?? 0;
   const safeAmountColor = safeToSpendColor(safeToSpendAmount);
+
+  // Buffer badge config
+  const bufferRate = details?.bufferRate ?? 0.85;
+  const bufferInfo = bufferConfig[bufferRate] ?? bufferConfig[0.85];
+
+  // Volatility indicator (only when there's actual income data — not no_income_history)
+  const volatility = details?.incomeVolatility;
+  const showVolatility = volatility && !hasNoIncomeHistory && details?.weightedAvgIncome !== undefined && details.weightedAvgIncome > 0;
+
+  // Stats row: use safe-to-spend expectedPaycheckAmount when available
+  const expectedPaycheck = safeToSpendData?.expectedPaycheckAmount;
+  const nextPaycheckDate = safeToSpendData?.nextPaycheckDate;
 
   return (
         <div style={styles.container}>
@@ -295,7 +365,7 @@ export default function DashboardPage() {
                   safe-to-spend amount.
                 </p>
               </div>
-            ) : warning === 'no_income_history' ? (
+            ) : hasNoIncomeHistory ? (
               <div style={styles.cardCenter}>
                 <span style={styles.warningIcon}>📋</span>
                 <p style={styles.warningTitle}>No Income History</p>
@@ -303,18 +373,30 @@ export default function DashboardPage() {
                   Add your first shift to calculate your safe-to-spend.
                 </p>
               </div>
-            ) : warning === 'income_below_bills' ? (
+            ) : hasIncomeBelowBills ? (
               <>
                 <p style={styles.safeToSpendLabel}>Safe to Spend</p>
-                <p
-                  style={{
-                    ...styles.safeToSpendAmount,
-                    color: colors.red,
-                  }}
-                >
-                  {formatCurrency(safeToSpendAmount)}
-                  <span style={styles.perDay}>/day</span>
-                </p>
+                <div style={styles.safeToSpendRow}>
+                  <p
+                    style={{
+                      ...styles.safeToSpendAmount,
+                      color: colors.red,
+                    }}
+                  >
+                    {formatCurrency(safeToSpendAmount)}
+                    <span style={styles.perDay}>/day</span>
+                  </p>
+                  <span
+                    title="Based on your income stability"
+                    style={{
+                      ...styles.bufferBadge,
+                      color: bufferInfo.color,
+                      background: bufferInfo.bg,
+                    }}
+                  >
+                    {bufferInfo.label}
+                  </span>
+                </div>
                 <div style={styles.warningBadge}>
                   ⚠️ Your upcoming bills exceed your balance. Consider reducing
                   expenses.
@@ -323,15 +405,28 @@ export default function DashboardPage() {
             ) : (
               <>
                 <p style={styles.safeToSpendLabel}>Safe to Spend</p>
-                <p
-                  style={{
-                    ...styles.safeToSpendAmount,
-                    color: safeAmountColor,
-                  }}
-                >
-                  {formatCurrency(safeToSpendAmount)}
-                  <span style={styles.perDay}>/day</span>
-                </p>
+                <div style={styles.safeToSpendRow}>
+                  <p
+                    style={{
+                      ...styles.safeToSpendAmount,
+                      color: safeAmountColor,
+                    }}
+                  >
+                    {formatCurrency(safeToSpendAmount)}
+                    <span style={styles.perDay}>/day</span>
+                  </p>
+                  <span
+                    title="Based on your income stability"
+                    style={{
+                      ...styles.bufferBadge,
+                      color: bufferInfo.color,
+                      background: bufferInfo.bg,
+                    }}
+                  >
+                    {bufferInfo.label}
+                    <InfoTooltip text="Based on your income stability" />
+                  </span>
+                </div>
                 <p style={styles.safeToSpendSubtitle}>
                   You can safely spend this much per day until your next
                   paycheck
@@ -340,6 +435,33 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {/* ── Trend Warnings ──────────────────────────────────────── */}
+          {trendingDown && (
+            <div style={styles.trendDownBanner}>
+              ⚠️ Your recent income is significantly lower than usual. Be extra cautious.
+            </div>
+          )}
+          {trendingUp && (
+            <div style={styles.trendUpNote}>
+              Your income is trending up — great job!
+            </div>
+          )}
+
+          {/* ── Income Volatility Indicator ──────────────────────────── */}
+          {showVolatility && (
+            <div style={styles.volatilityRow}>
+              <span style={styles.volatilityLabel}>Income:</span>
+              <span
+                style={{
+                  ...styles.volatilityValue,
+                  color: volatilityConfig[volatility!].color,
+                }}
+              >
+                {volatilityConfig[volatility!].label}
+              </span>
+            </div>
+          )}
+
           {/* ── Quick Stats Row ─────────────────────────────────── */}
           {incomeStats && (
             <div style={styles.statsRow}>
@@ -347,14 +469,19 @@ export default function DashboardPage() {
                 icon="💰"
                 title="Next Paycheck"
                 value={
-                  safeToSpendData
-                    ? formatCurrency(safeToSpendData.expectedPaycheckAmount)
+                  expectedPaycheck !== undefined && expectedPaycheck > 0
+                    ? formatCurrency(expectedPaycheck)
                     : '—'
                 }
                 subtitle={
-                  safeToSpendData
-                    ? formatDate(safeToSpendData.nextPaycheckDate)
-                    : undefined
+                  <>
+                    {nextPaycheckDate
+                      ? formatDate(nextPaycheckDate)
+                      : undefined}
+                    {expectedPaycheck !== undefined && expectedPaycheck > 0 && (
+                      <span style={styles.weightedLabel}>weighted</span>
+                    )}
+                  </>
                 }
               />
               <StatCard
@@ -598,8 +725,16 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
   },
-  safeToSpendAmount: {
+  safeToSpendRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
     margin: '0.25rem 0 0',
+  },
+  safeToSpendAmount: {
+    margin: 0,
     fontSize: '2.75rem',
     fontWeight: 800,
     lineHeight: 1.1,
@@ -609,6 +744,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: colors.subtle,
     marginLeft: '0.25rem',
+  },
+  bufferBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.15rem',
+    padding: '0.2rem 0.6rem',
+    borderRadius: 20,
+    fontSize: '0.72rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
   safeToSpendSubtitle: {
     margin: '0.4rem 0 0',
@@ -667,6 +812,54 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     maxWidth: 400,
     alignSelf: 'center',
+  },
+
+  // Trend warnings
+  trendDownBanner: {
+    padding: '0.75rem 1rem',
+    borderRadius: 10,
+    background: '#fef3c7',
+    color: '#92400e',
+    fontSize: '0.88rem',
+    fontWeight: 500,
+    textAlign: 'center' as const,
+  },
+  trendUpNote: {
+    padding: '0.5rem 1rem',
+    borderRadius: 10,
+    background: colors.primaryLight,
+    color: colors.primary,
+    fontSize: '0.85rem',
+    fontWeight: 500,
+    textAlign: 'center' as const,
+  },
+
+  // Income volatility indicator
+  volatilityRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.4rem',
+    padding: '0.4rem 0',
+  },
+  volatilityLabel: {
+    fontSize: '0.82rem',
+    fontWeight: 500,
+    color: colors.subtle,
+  },
+  volatilityValue: {
+    fontSize: '0.82rem',
+    fontWeight: 700,
+  },
+
+  // Weighted label for Next Paycheck
+  weightedLabel: {
+    display: 'block',
+    fontSize: '0.7rem',
+    fontWeight: 500,
+    color: colors.subtle,
+    fontStyle: 'italic',
+    marginTop: '0.15rem',
   },
 
   // Stats row
