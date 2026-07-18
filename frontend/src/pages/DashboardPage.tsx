@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchSafeToSpend, type SafeToSpendResponse, type IncomeVolatility } from '../api/safeToSpend';
 import { fetchIncomeStats, fetchShifts, type IncomeStats, type Shift } from '../api/income';
 import { fetchExpenses, type Expense } from '../api/expenses';
 import { fetchUpcomingBills, type UpcomingBill } from '../api/bills';
+import { fetchAlerts, type BillAlert } from '../api/alerts';
+import CategoryBadge from '../components/CategoryBadge';
 import {
   BarChart,
   Bar,
@@ -48,21 +51,6 @@ const volatilityConfig: Record<IncomeVolatility, { label: string; color: string 
   stable: { label: 'Stable', color: colors.green },
   moderate: { label: 'Moderate', color: colors.blue },
   volatile: { label: 'Volatile', color: colors.amber },
-};
-
-const categoryColors: Record<string, string> = {
-  housing: '#2d8a5e',
-  utilities: '#3a9d6a',
-  food: '#e6a817',
-  transportation: '#4a90d9',
-  insurance: '#8e6ab7',
-  healthcare: '#e0555a',
-  entertainment: '#d97706',
-  other: '#6b7280',
-};
-
-const getCategoryColor = (category: string): string => {
-  return categoryColors[category.toLowerCase()] || categoryColors.other;
 };
 
 const formatCurrency = (amount: number): string => {
@@ -122,26 +110,6 @@ function StatCard({
         {subtitle && <p style={styles.statSubtitle}>{subtitle}</p>}
       </div>
     </div>
-  );
-}
-
-function CategoryBadge({ category }: { category: string }) {
-  const bg = getCategoryColor(category);
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: 12,
-        fontSize: '0.72rem',
-        fontWeight: 600,
-        color: '#fff',
-        backgroundColor: bg,
-        textTransform: 'capitalize',
-      }}
-    >
-      {category}
-    </span>
   );
 }
 
@@ -236,6 +204,9 @@ export default function DashboardPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
 
+  const [alerts, setAlerts] = useState<BillAlert[]>([]);
+  const [criticalAlertCount, setCriticalAlertCount] = useState(0);
+
   // Fetch safe-to-spend when balance is submitted
   const loadSafeToSpend = useCallback(async (balance: number) => {
     setSafeToSpendLoading(true);
@@ -260,6 +231,23 @@ export default function DashboardPage() {
       loadSafeToSpend(parsed);
     }
   };
+
+  // Fetch alerts on mount and when balance changes
+  const loadAlerts = useCallback(async () => {
+    try {
+      const data = await fetchAlerts();
+      setAlerts(data.alerts);
+      setCriticalAlertCount(
+        data.alerts.filter((a) => a.severity === 'critical').length
+      );
+    } catch {
+      // Silently handle — alerts section just won't render
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts, queriedBalance]);
 
   // Fetch ancillary data on mount
   useEffect(() => {
@@ -338,6 +326,47 @@ export default function DashboardPage() {
               </button>
             </div>
           </form>
+
+          {/* ── Emergency Mode Button ──────────────────────────── */}
+          {(safeToSpendData !== null &&
+            safeToSpendData.safeToSpend < 5) ||
+          criticalAlertCount > 0 ? (
+            <Link to="/emergency" style={styles.emergencyBtn}>
+              ⚠️ Emergency View
+            </Link>
+          ) : null}
+
+          {/* ── Alerts ──────────────────────────────────────────── */}
+          {alerts.length > 0 && (
+            <div style={styles.alertsSection}>
+              {alerts.map((alert, i) => {
+                const isCritical = alert.severity === 'critical';
+                const cardStyle = isCritical ? styles.alertCritical : styles.alertWarning;
+                const hasBill = alert.bill != null;
+                return (
+                  <div key={i} style={cardStyle}>
+                    <div style={styles.alertContent}>
+                      <p style={styles.alertTitle}>
+                        {isCritical ? '⚠️ ' : ''}
+                        {alert.title}
+                      </p>
+                      <p style={styles.alertMessage}>{alert.message}</p>
+                    </div>
+                    {hasBill && (
+                      <div style={styles.alertBillInfo}>
+                        <span style={styles.alertBillAmount}>
+                          {formatCurrency(alert.bill!.amount)}
+                        </span>
+                        <span style={styles.alertBillDate}>
+                          Due {formatDate(alert.bill!.projected_due_date)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* ── Safe-to-Spend Card ──────────────────────────────── */}
           <div style={styles.safeToSpendCard}>
@@ -657,6 +686,80 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12,
     padding: '1.25rem 1.5rem',
     boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
+  },
+
+  // Emergency button
+  emergencyBtn: {
+    display: 'block',
+    textAlign: 'center' as const,
+    padding: '0.7rem 1.25rem',
+    borderRadius: 10,
+    background: '#fef3c7',
+    border: '2px solid #e6a817',
+    color: '#92400e',
+    fontSize: '0.95rem',
+    fontWeight: 700,
+    textDecoration: 'none',
+    transition: 'background 0.2s',
+  },
+
+  // Alerts
+  alertsSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '0.5rem',
+  },
+  alertCritical: {
+    background: '#fef2f2',
+    borderRadius: 10,
+    padding: '1rem 1.25rem',
+    border: '2px solid #ef4444',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap' as const,
+    gap: '0.5rem',
+  },
+  alertWarning: {
+    background: '#fffbeb',
+    borderRadius: 10,
+    padding: '1rem 1.25rem',
+    border: '2px solid #e6a817',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap' as const,
+    gap: '0.5rem',
+  },
+  alertContent: {
+    flex: 1,
+    minWidth: 200,
+  },
+  alertTitle: {
+    margin: 0,
+    fontSize: '0.9rem',
+    fontWeight: 700,
+    color: colors.text,
+  },
+  alertMessage: {
+    margin: '0.25rem 0 0',
+    fontSize: '0.82rem',
+    color: colors.subtle,
+  },
+  alertBillInfo: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'flex-end',
+    gap: '0.15rem',
+  },
+  alertBillAmount: {
+    fontSize: '1.1rem',
+    fontWeight: 700,
+    color: colors.text,
+  },
+  alertBillDate: {
+    fontSize: '0.78rem',
+    color: colors.subtle,
   },
   balanceLabel: {
     display: 'block',
