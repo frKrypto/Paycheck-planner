@@ -37,8 +37,10 @@ app.use('/api/bills', billRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/safe-to-spend', safeToSpendRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
