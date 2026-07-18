@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import IncomePage from './pages/IncomePage';
 import ExpensesPage from './pages/ExpensesPage';
 import BillsPage from './pages/BillsPage';
+import EmergencyPage from './pages/EmergencyPage';
 
 export default function App() {
   return (
@@ -52,6 +53,14 @@ export default function App() {
               <Layout>
                 <BillsPage />
               </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/emergency"
+          element={
+            <ProtectedRoute>
+              <EmergencyPage />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { fetchAlerts } from '../api/alerts';
+import { useState, useEffect } from 'react';
 import type { ReactNode, CSSProperties } from 'react';
 
 const colors = {
@@ -34,6 +36,28 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
+  },
+  bellBadge: {
+    position: 'relative' as const,
+    display: 'inline-flex',
+    fontSize: '1.2rem',
+    cursor: 'default',
+  },
+  bellCount: {
+    position: 'absolute' as const,
+    top: -6,
+    right: -8,
+    background: '#ef4444',
+    color: '#fff',
+    borderRadius: '50%',
+    width: 18,
+    height: 18,
+    fontSize: '0.65rem',
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 1,
   },
   userName: {
     fontSize: '0.9rem',
@@ -87,6 +111,21 @@ const styles: Record<string, CSSProperties> = {
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [criticalCount, setCriticalCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAlerts('critical')
+      .then((data) => {
+        if (!cancelled) setCriticalCount(data.count);
+      })
+      .catch(() => {
+        // Silently handle
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -103,6 +142,12 @@ export default function Layout({ children }: { children: ReactNode }) {
       <header style={styles.header}>
         <h1 style={styles.headerTitle}>PayCheck Planner</h1>
         <div style={styles.userArea}>
+          {criticalCount > 0 && (
+            <span style={styles.bellBadge} title={`${criticalCount} critical alert(s)`}>
+              🔔
+              <span style={styles.bellCount}>{criticalCount}</span>
+            </span>
+          )}
           <span style={styles.userName}>{user?.name}</span>
           <button style={styles.logoutBtn} onClick={handleLogout}>
             Sign Out
