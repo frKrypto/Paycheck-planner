@@ -44,6 +44,32 @@ function Spinner({ size = 28 }: { size?: number }) {
   );
 }
 
+// ── Info Tooltip ──────────────────────────────────────────────────────
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: colors.border,
+        color: colors.subtle,
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        cursor: 'help',
+        marginLeft: 4,
+        lineHeight: 1,
+      }}
+    >
+      ?
+    </span>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -182,19 +208,30 @@ export default function IncomePage() {
     <div>
       {/* ── Income Stats ──────────────────────────────────────────── */}
       <div style={styles.statsRow}>
+        {/* Weighted 4-Week Average (primary) */}
         <div style={styles.statCard}>
-          <p style={styles.statLabel}>Rolling 4-Week Average</p>
-          <p style={styles.statValue}>
+          <p style={styles.statLabel}>
+            Weighted 4-Week Average
+            <InfoTooltip text="Recent shifts count more toward this estimate" />
+          </p>
+          <p style={styles.statValuePrimary}>
             {statsLoading ? (
               <Spinner size={20} />
             ) : (
-              formatCurrency(stats?.rolling_4wk_avg ?? 0)
+              formatCurrency(stats?.weighted_4wk_avg ?? 0)
             )}
           </p>
+          {!statsLoading && (
+            <p style={styles.statSub}>
+              Simple avg: {formatCurrency(stats?.rolling_4wk_avg ?? 0)}
+            </p>
+          )}
         </div>
+
+        {/* This Month */}
         <div style={styles.statCard}>
           <p style={styles.statLabel}>This Month</p>
-          <p style={styles.statValue}>
+          <p style={styles.statValuePrimary}>
             {statsLoading ? (
               <Spinner size={20} />
             ) : (
@@ -349,7 +386,7 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: '0.03em',
   },
-  statValue: {
+  statValuePrimary: {
     margin: '0.3rem 0 0',
     fontSize: '1.35rem',
     fontWeight: 700,

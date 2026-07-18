@@ -13,6 +13,8 @@ export interface Shift {
 
 export interface IncomeStats {
   rolling_4wk_avg: number;
+  /** Weighted 4-week avg: recent weeks count 3x, middle 1x, older 0.5x */
+  weighted_4wk_avg: number;
   total_this_month: number;
   shift_count: number;
   pay_schedule: string;
