@@ -55,17 +55,50 @@ router.get('/', (req: AuthRequest, res: Response): void => {
     req.userId!
   );
 
+  // Get shifts for overtime opportunity alert (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+  const shifts = db
+    .prepare(
+      `SELECT date, overtime_hours, hourly_rate
+       FROM shifts
+       WHERE user_id = ? AND date >= ?
+       ORDER BY date DESC`
+    )
+    .all(req.userId!, thirtyDaysAgoStr) as Array<{
+    date: string;
+    overtime_hours: number;
+    hourly_rate: number;
+  }>;
+
+  // Compute average hourly rate from all shifts (not just recent ones)
+  const allShiftsForRate = db
+    .prepare(
+      `SELECT hourly_rate FROM shifts WHERE user_id = ?`
+    )
+    .all(req.userId!) as Array<{ hourly_rate: number }>;
+
+  const averageHourlyRate =
+    allShiftsForRate.length > 0
+      ? allShiftsForRate.reduce((sum, s) => sum + s.hourly_rate, 0) /
+        allShiftsForRate.length
+      : undefined;
+
   const alerts = generateAlerts({
     bills,
     weightedWeeklyIncome,
     paySchedule,
     billHistory,
+    shifts,
+    averageHourlyRate,
   });
 
   // Optional severity filter
   const severityFilter = req.query.severity as string | undefined;
   const filtered =
-    severityFilter && ['warning', 'critical'].includes(severityFilter)
+    severityFilter && ['warning', 'critical', 'info'].includes(severityFilter)
       ? alerts.filter(
           (a) => a.severity === severityFilter
         )

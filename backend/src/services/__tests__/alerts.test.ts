@@ -320,11 +320,14 @@ describe('generateAlerts', () => {
       expect(alert).toHaveProperty('severity');
       expect(alert).toHaveProperty('title');
       expect(alert).toHaveProperty('message');
-      expect(['warning', 'critical']).toContain(alert.severity);
+      expect(['warning', 'critical', 'info']).toContain(alert.severity);
       expect([
         'IMMINENT_BILL',
         'LOW_SAFE_TO_SPEND',
         'BILL_DUE_BEFORE_PAYCHECK',
+        'BILL_INCREASE',
+        'SUBSCRIPTION_REVIEW',
+        'OVERTIME_OPPORTUNITY',
       ]).toContain(alert.type);
     }
   });
@@ -523,5 +526,91 @@ describe('generateAlerts', () => {
 
     const reviewAlerts = alerts.filter((a) => a.type === 'SUBSCRIPTION_REVIEW');
     expect(reviewAlerts.length).toBe(0);
+  });
+
+  // ── OVERTIME_OPPORTUNITY ────────────────────────────────────────
+
+  test('low safe-to-spend + recent overtime → OVERTIME_OPPORTUNITY with OT variant', () => {
+    // Today: July 10, bill due July 15 ($900) > 80% of $1000 = low safe-to-spend
+    const today = new Date(2026, 6, 10); // July 10
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, due_date: '15', amount: 900, name: 'Rent' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today,
+      shifts: [
+        { date: '2026-07-05', overtime_hours: 2, hourly_rate: 25 },
+        { date: '2026-06-20', overtime_hours: 0, hourly_rate: 25 },
+      ],
+      averageHourlyRate: 25,
+    });
+
+    const otAlerts = alerts.filter((a) => a.type === 'OVERTIME_OPPORTUNITY');
+    expect(otAlerts.length).toBe(1);
+    expect(otAlerts[0].severity).toBe('info');
+    expect(otAlerts[0].title).toBe('Pick up extra shifts?');
+    expect(otAlerts[0].message).toMatch(/you've worked overtime recently/);
+    expect(otAlerts[0].message).toMatch(/\$100\.00/); // $25/hr × 4 = $100
+    expect(otAlerts[0].estimatedExtraIncome).toBe(100);
+  });
+
+  test('low safe-to-spend + no overtime history → OVERTIME_OPPORTUNITY generic variant', () => {
+    // Today: July 10, bill due July 15 ($900) > 80% of $1000 = low safe-to-spend
+    const today = new Date(2026, 6, 10); // July 10
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, due_date: '15', amount: 900, name: 'Rent' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today,
+      shifts: [
+        { date: '2026-07-05', overtime_hours: 0, hourly_rate: 20 },
+      ],
+      averageHourlyRate: 20,
+    });
+
+    const otAlerts = alerts.filter((a) => a.type === 'OVERTIME_OPPORTUNITY');
+    expect(otAlerts.length).toBe(1);
+    expect(otAlerts[0].severity).toBe('info');
+    expect(otAlerts[0].title).toBe('Consider extra hours');
+    expect(otAlerts[0].message).toBe('Your budget is tight. An extra shift could help bridge the gap.');
+    expect(otAlerts[0].estimatedExtraIncome).toBe(80); // $20/hr × 4 = $80
+  });
+
+  test('safe-to-spend is fine → no OVERTIME_OPPORTUNITY alert', () => {
+    // Today: July 10, bill due July 15 ($500) = 50% of $1000 = not low
+    const today = new Date(2026, 6, 10); // July 10
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, due_date: '15', amount: 500, name: 'Rent' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today,
+      shifts: [
+        { date: '2026-07-05', overtime_hours: 3, hourly_rate: 25 },
+      ],
+      averageHourlyRate: 25,
+    });
+
+    const otAlerts = alerts.filter((a) => a.type === 'OVERTIME_OPPORTUNITY');
+    expect(otAlerts.length).toBe(0);
+  });
+
+  test('low safe-to-spend + OT older than 30 days → generic variant', () => {
+    // Today: July 15, OT only on June 14 (31 days ago), bill $900 > 80% of $1000
+    const today = new Date(2026, 6, 15); // July 15
+    const alerts = generateAlerts({
+      bills: [bill({ id: 1, due_date: '18', amount: 900, name: 'Rent' })],
+      weightedWeeklyIncome: 1000,
+      paySchedule: 'biweekly',
+      today,
+      shifts: [
+        { date: '2026-06-14', overtime_hours: 2, hourly_rate: 30 },
+      ],
+      averageHourlyRate: 30,
+    });
+
+    const otAlerts = alerts.filter((a) => a.type === 'OVERTIME_OPPORTUNITY');
+    expect(otAlerts.length).toBe(1);
+    expect(otAlerts[0].title).toBe('Consider extra hours'); // generic, not OT variant
+    expect(otAlerts[0].estimatedExtraIncome).toBe(120); // $30/hr × 4
   });
 });

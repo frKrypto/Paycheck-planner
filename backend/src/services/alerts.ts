@@ -1,8 +1,8 @@
 import { computeNextPaycheck, computeProjectedDueDate } from './dateUtils';
 
 export interface BillAlert {
-  type: 'IMMINENT_BILL' | 'LOW_SAFE_TO_SPEND' | 'BILL_DUE_BEFORE_PAYCHECK' | 'BILL_INCREASE' | 'SUBSCRIPTION_REVIEW';
-  severity: 'warning' | 'critical';
+  type: 'IMMINENT_BILL' | 'LOW_SAFE_TO_SPEND' | 'BILL_DUE_BEFORE_PAYCHECK' | 'BILL_INCREASE' | 'SUBSCRIPTION_REVIEW' | 'OVERTIME_OPPORTUNITY';
+  severity: 'warning' | 'critical' | 'info';
   title: string;
   message: string;
   bill?: {
@@ -15,6 +15,7 @@ export interface BillAlert {
   percentIncrease?: number;
   subscriptionCount?: number;
   totalMonthly?: number;
+  estimatedExtraIncome?: number;
 }
 
 export interface GenerateAlertsInput {
@@ -31,6 +32,8 @@ export interface GenerateAlertsInput {
   paySchedule: string;
   today?: Date;
   billHistory?: Array<{ bill_id: number; amount: number; recorded_at: string }>;
+  shifts?: Array<{ date: string; overtime_hours: number; hourly_rate: number }>;
+  averageHourlyRate?: number;
 }
 
 export function generateAlerts(input: GenerateAlertsInput): BillAlert[] {
@@ -201,6 +204,63 @@ export function generateAlerts(input: GenerateAlertsInput): BillAlert[] {
         subscriptionCount: subscriptions.length,
         totalMonthly,
       });
+    }
+  }
+
+  // ── OVERTIME_OPPORTUNITY ───────────────────────────────────────
+  // Check if safe-to-spend is tight (bills in next 7 days > 80% of weekly income)
+  if (input.weightedWeeklyIncome > 0) {
+    const billsInWeek = billsWithProjected.filter(
+      (b) =>
+        b.projected_due_date >= todayStr &&
+        b.projected_due_date <= sevenDaysStr
+    );
+    const weekBillsTotal = billsInWeek.reduce(
+      (sum, b) => sum + b.amount,
+      0
+    );
+
+    const isLowSafeToSpend = weekBillsTotal > input.weightedWeeklyIncome * 0.8;
+
+    if (isLowSafeToSpend) {
+      const avgRate =
+        input.averageHourlyRate && input.averageHourlyRate > 0
+          ? input.averageHourlyRate
+          : input.shifts && input.shifts.length > 0
+            ? input.shifts.reduce((sum, s) => sum + s.hourly_rate, 0) /
+              input.shifts.length
+            : 0;
+      const estimatedExtraIncome = Math.round(avgRate * 4 * 100) / 100;
+
+      // Check if user has worked overtime in the last 30 days
+      const thirtyDaysAgo = addDays(today, -30);
+      const thirtyDaysAgoStr = toDateStr(thirtyDaysAgo);
+
+      const hasRecentOT =
+        input.shifts
+          ? input.shifts.some(
+              (s) =>
+                s.overtime_hours > 0 && s.date >= thirtyDaysAgoStr
+            )
+          : false;
+
+      if (hasRecentOT) {
+        alerts.push({
+          type: 'OVERTIME_OPPORTUNITY',
+          severity: 'info',
+          title: 'Pick up extra shifts?',
+          message: `Your finances are tight and you've worked overtime recently. An extra 4-hour shift could add ${estimatedExtraIncome.toFixed(2)} to your budget.`,
+          estimatedExtraIncome,
+        });
+      } else {
+        alerts.push({
+          type: 'OVERTIME_OPPORTUNITY',
+          severity: 'info',
+          title: 'Consider extra hours',
+          message: 'Your budget is tight. An extra shift could help bridge the gap.',
+          estimatedExtraIncome,
+        });
+      }
     }
   }
 
