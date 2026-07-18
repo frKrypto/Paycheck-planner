@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { initDb } from './db';
 import authRoutes from './routes/auth';
 import { shiftRoutes, incomeRoutes } from './routes/shifts';
+import billRoutes from './routes/bills';
+import expenseRoutes from './routes/expenses';
 
 dotenv.config({ override: true });
 
@@ -24,6 +26,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/income', incomeRoutes);
+app.use('/api/bills', billRoutes);
+app.use('/api/expenses', expenseRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
