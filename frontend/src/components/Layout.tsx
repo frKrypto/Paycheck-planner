@@ -1,115 +1,15 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useThemeStyles } from '../hooks/useThemeStyles';
 import { fetchAlerts } from '../api/alerts';
 import { useState, useEffect } from 'react';
 import type { ReactNode, CSSProperties } from 'react';
 
-const colors = {
-  bg: '#f0f9f4',
-  headerBg: '#ffffff',
-  primary: '#2d8a5e',
-  primaryLight: '#e8f5ee',
-  text: '#1a2e23',
-  subtle: '#5c7a68',
-  border: '#d1e7dc',
-};
-
-const styles: Record<string, CSSProperties> = {
-  header: {
-    background: colors.headerBg,
-    borderBottom: `1px solid ${colors.border}`,
-    padding: '0.75rem 1.5rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
-  },
-  headerTitle: {
-    margin: 0,
-    fontSize: '1.25rem',
-    fontWeight: 700,
-    color: colors.primary,
-  },
-  userArea: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  bellBadge: {
-    position: 'relative' as const,
-    display: 'inline-flex',
-    fontSize: '1.2rem',
-    cursor: 'default',
-  },
-  bellCount: {
-    position: 'absolute' as const,
-    top: -6,
-    right: -8,
-    background: '#ef4444',
-    color: '#fff',
-    borderRadius: '50%',
-    width: 18,
-    height: 18,
-    fontSize: '0.65rem',
-    fontWeight: 700,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    lineHeight: 1,
-  },
-  userName: {
-    fontSize: '0.9rem',
-    fontWeight: 500,
-    color: colors.text,
-  },
-  logoutBtn: {
-    background: 'transparent',
-    border: `1px solid ${colors.border}`,
-    borderRadius: 6,
-    padding: '0.35rem 0.75rem',
-    fontSize: '0.8rem',
-    cursor: 'pointer',
-    color: colors.subtle,
-  },
-  nav: {
-    background: colors.headerBg,
-    borderBottom: `1px solid ${colors.border}`,
-    display: 'flex',
-    gap: 0,
-    padding: '0 1.5rem',
-    overflowX: 'auto',
-  },
-  navLink: {
-    display: 'inline-block',
-    padding: '0.65rem 1.1rem',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: colors.subtle,
-    textDecoration: 'none',
-    borderBottom: '3px solid transparent',
-    transition: 'color 0.15s, border-color 0.15s',
-    whiteSpace: 'nowrap',
-  },
-  navLinkActive: {
-    color: colors.primary,
-    borderBottomColor: colors.primary,
-    fontWeight: 600,
-  },
-  page: {
-    minHeight: '100vh',
-    background: colors.bg,
-  },
-  main: {
-    padding: '1.5rem',
-    maxWidth: 960,
-    margin: '0 auto',
-  },
-};
-
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const colors = useThemeStyles();
   const navigate = useNavigate();
   const [criticalCount, setCriticalCount] = useState(0);
 
@@ -133,28 +33,129 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   const linkStyle = (isActive: boolean): CSSProperties => ({
-    ...styles.navLink,
-    ...(isActive ? styles.navLinkActive : {}),
+    display: 'inline-block',
+    padding: '0.65rem 1.1rem',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: isActive ? colors.primary : colors.subtle,
+    textDecoration: 'none',
+    borderBottom: `3px solid ${isActive ? colors.primary : 'transparent'}`,
+    transition: 'color 0.15s, border-color 0.15s',
+    whiteSpace: 'nowrap',
+    ...(isActive ? { fontWeight: 600 } : {}),
   });
 
+  const headerStyle: CSSProperties = {
+    background: colors.cardBg,
+    borderBottom: `1px solid ${colors.border}`,
+    padding: '0.75rem 1.5rem',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    boxShadow: `0 1px 4px ${colors.primaryLight}`,
+  };
+
+  const headerTitleStyle: CSSProperties = {
+    margin: 0,
+    fontSize: '1.25rem',
+    fontWeight: 700,
+    color: colors.primary,
+  };
+
+  const navStyle: CSSProperties = {
+    background: colors.cardBg,
+    borderBottom: `1px solid ${colors.border}`,
+    display: 'flex',
+    gap: 0,
+    padding: '0 1.5rem',
+    overflowX: 'auto',
+  };
+
+  const pageStyle: CSSProperties = {
+    minHeight: '100vh',
+    background: colors.bg,
+  };
+
+  const mainStyle: CSSProperties = {
+    padding: '1.5rem',
+    maxWidth: 960,
+    margin: '0 auto',
+  };
+
+  const themeBtnStyle: CSSProperties = {
+    background: 'transparent',
+    border: `1px solid ${colors.border}`,
+    borderRadius: 6,
+    padding: '0.3rem 0.55rem',
+    fontSize: '1.05rem',
+    cursor: 'pointer',
+    lineHeight: 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
   return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <h1 style={styles.headerTitle}>PayCheck Planner</h1>
-        <div style={styles.userArea}>
+    <div style={pageStyle}>
+      <header style={headerStyle}>
+        <h1 style={headerTitleStyle}>PayCheck Planner</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            style={themeBtnStyle}
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           {criticalCount > 0 && (
-            <span style={styles.bellBadge} title={`${criticalCount} critical alert(s)`}>
+            <span style={{
+              position: 'relative' as const,
+              display: 'inline-flex',
+              fontSize: '1.2rem',
+              cursor: 'default',
+            }} title={`${criticalCount} critical alert(s)`}>
               🔔
-              <span style={styles.bellCount}>{criticalCount}</span>
+              <span style={{
+                position: 'absolute' as const,
+                top: -6,
+                right: -8,
+                background: '#ef4444',
+                color: '#fff',
+                borderRadius: '50%',
+                width: 18,
+                height: 18,
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+              }}>{criticalCount}</span>
             </span>
           )}
-          <span style={styles.userName}>{user?.name}</span>
-          <button style={styles.logoutBtn} onClick={handleLogout}>
+          <span style={{ fontSize: '0.9rem', fontWeight: 500, color: colors.text }}>
+            {user?.name}
+          </span>
+          <button
+            style={{
+              background: 'transparent',
+              border: `1px solid ${colors.border}`,
+              borderRadius: 6,
+              padding: '0.35rem 0.75rem',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              color: colors.subtle,
+            }}
+            onClick={handleLogout}
+          >
             Sign Out
           </button>
         </div>
       </header>
-      <nav style={styles.nav}>
+      <nav style={navStyle}>
         <NavLink to="/" end style={({ isActive }) => linkStyle(isActive)}>
           Dashboard
         </NavLink>
@@ -168,7 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           Bills
         </NavLink>
       </nav>
-      <main style={styles.main}>{children}</main>
+      <main style={mainStyle}>{children}</main>
     </div>
   );
 }

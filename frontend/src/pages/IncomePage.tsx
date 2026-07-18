@@ -7,18 +7,7 @@ import {
   type Shift,
   type IncomeStats,
 } from '../api/income';
-
-// ── Colors ────────────────────────────────────────────────────────────
-const colors = {
-  bg: '#f0f9f4',
-  cardBg: '#ffffff',
-  primary: '#2d8a5e',
-  primaryLight: '#e8f5ee',
-  text: '#1a2e23',
-  subtle: '#5c7a68',
-  border: '#d1e7dc',
-  red: '#c0392b',
-};
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const formatCurrency = (amount: number): string => '$' + amount.toFixed(2);
@@ -27,93 +16,52 @@ const formatDate = (dateStr: string): string => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-// ── Spinner ───────────────────────────────────────────────────────────
-function Spinner({ size = 28 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        border: '3px solid #e0e0e0',
-        borderTopColor: colors.primary,
-        borderRadius: '50%',
-        animation: 'spin 0.7s linear infinite',
-        margin: '0 auto',
-      }}
-    />
-  );
-}
-
-// ── Info Tooltip ──────────────────────────────────────────────────────
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <span
-      title={text}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 16,
-        height: 16,
-        borderRadius: '50%',
-        background: colors.border,
-        color: colors.subtle,
-        fontSize: '0.65rem',
-        fontWeight: 700,
-        cursor: 'help',
-        marginLeft: 4,
-        lineHeight: 1,
-      }}
-    >
-      ?
-    </span>
-  );
-}
-
-// ── Styles ────────────────────────────────────────────────────────────
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem 0.75rem',
-  fontSize: '0.9rem',
-  border: `1px solid ${colors.border}`,
-  borderRadius: 8,
-  background: '#fafdfb',
-  color: colors.text,
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: '0.3rem',
-  fontSize: '0.82rem',
-  fontWeight: 600,
-  color: colors.subtle,
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: colors.primary,
-  color: '#fff',
-  border: 'none',
-  borderRadius: 8,
-  padding: '0.6rem 1.25rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  background: 'transparent',
-  color: colors.red,
-  border: `1px solid ${colors.red}`,
-  borderRadius: 6,
-  padding: '0.3rem 0.65rem',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-};
-
 // ── IncomePage ────────────────────────────────────────────────────────
 export default function IncomePage() {
+  const colors = useThemeStyles();
+
+  // Sub-components
+  function Spinner({ size = 28 }: { size?: number }) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          border: `3px solid ${colors.border}`,
+          borderTopColor: colors.primary,
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+          margin: '0 auto',
+        }}
+      />
+    );
+  }
+
+  function InfoTooltip({ text }: { text: string }) {
+    return (
+      <span
+        title={text}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: colors.border,
+          color: colors.subtle,
+          fontSize: '0.65rem',
+          fontWeight: 700,
+          cursor: 'help',
+          marginLeft: 4,
+          lineHeight: 1,
+        }}
+      >
+        ?
+      </span>
+    );
+  }
+
   // Stats
   const [stats, setStats] = useState<IncomeStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -177,13 +125,11 @@ export default function IncomePage() {
         tips: tips ? parseFloat(tips) : undefined,
         overtime_hours: overtimeHours ? parseFloat(overtimeHours) : undefined,
       });
-      // Clear form
       setDate('');
       setHoursWorked('');
       setHourlyRate('');
       setTips('');
       setOvertimeHours('');
-      // Refresh
       await loadData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to log shift.';
@@ -204,11 +150,159 @@ export default function IncomePage() {
 
   const today = new Date().toISOString().split('T')[0];
 
+  // ── Styles ────────────────────────────────────────────────────
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.6rem 0.75rem',
+    fontSize: '0.9rem',
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    background: colors.inputBg,
+    color: colors.text,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: '0.3rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: colors.subtle,
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background: colors.primary,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '0.6rem 1.25rem',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
+
+  const btnDanger: React.CSSProperties = {
+    background: 'transparent',
+    color: colors.red,
+    border: `1px solid ${colors.red}`,
+    borderRadius: 6,
+    padding: '0.3rem 0.65rem',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+  };
+
+  const styles: Record<string, React.CSSProperties> = {
+    statsRow: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gap: '1rem',
+      marginBottom: '1.5rem',
+    },
+    statCard: {
+      background: colors.cardBg,
+      borderRadius: 10,
+      padding: '1rem 1.25rem',
+      boxShadow: `0 1px 4px ${colors.primaryLight}`,
+    },
+    statLabel: {
+      margin: 0,
+      fontSize: '0.78rem',
+      fontWeight: 600,
+      color: colors.subtle,
+      textTransform: 'uppercase',
+      letterSpacing: '0.03em',
+    },
+    statValuePrimary: {
+      margin: '0.3rem 0 0',
+      fontSize: '1.35rem',
+      fontWeight: 700,
+      color: colors.text,
+    },
+    statSub: {
+      margin: '0.15rem 0 0',
+      fontSize: '0.78rem',
+      color: colors.subtle,
+    },
+    card: {
+      background: colors.cardBg,
+      borderRadius: 12,
+      padding: '1.5rem',
+      marginBottom: '1.5rem',
+      boxShadow: `0 1px 4px ${colors.primaryLight}`,
+    },
+    sectionTitle: {
+      margin: '0 0 1rem',
+      fontSize: '1.1rem',
+      fontWeight: 700,
+      color: colors.text,
+    },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gap: '1rem',
+    },
+    error: {
+      margin: '0 0 0.75rem',
+      fontSize: '0.85rem',
+      color: colors.red,
+      fontWeight: 500,
+    },
+    list: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.5rem',
+    },
+    listItem: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '0.5rem',
+      padding: '0.85rem 1rem',
+      borderBottom: `1px solid ${colors.border}`,
+    },
+    listLeft: {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    listDate: {
+      margin: 0,
+      fontSize: '0.9rem',
+      fontWeight: 600,
+      color: colors.text,
+    },
+    listDetail: {
+      margin: '0.15rem 0 0',
+      fontSize: '0.78rem',
+      color: colors.subtle,
+    },
+    listRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+    },
+    listTotal: {
+      margin: 0,
+      fontSize: '1rem',
+      fontWeight: 700,
+      color: colors.primary,
+    },
+    empty: {
+      padding: '2rem 1.5rem',
+      textAlign: 'center',
+    },
+    emptyText: {
+      margin: 0,
+      fontSize: '0.9rem',
+      color: colors.subtle,
+    },
+  };
+
   return (
     <div>
       {/* ── Income Stats ──────────────────────────────────────────── */}
       <div style={styles.statsRow}>
-        {/* Weighted 4-Week Average (primary) */}
         <div style={styles.statCard}>
           <p style={styles.statLabel}>
             Weighted 4-Week Average
@@ -228,7 +322,6 @@ export default function IncomePage() {
           )}
         </div>
 
-        {/* This Month */}
         <div style={styles.statCard}>
           <p style={styles.statLabel}>This Month</p>
           <p style={styles.statValuePrimary}>
@@ -363,111 +456,3 @@ export default function IncomePage() {
     </div>
   );
 }
-
-// ── Styles Object ─────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  statsRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-    gap: '1rem',
-    marginBottom: '1.5rem',
-  },
-  statCard: {
-    background: colors.cardBg,
-    borderRadius: 10,
-    padding: '1rem 1.25rem',
-    boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
-  },
-  statLabel: {
-    margin: 0,
-    fontSize: '0.78rem',
-    fontWeight: 600,
-    color: colors.subtle,
-    textTransform: 'uppercase',
-    letterSpacing: '0.03em',
-  },
-  statValuePrimary: {
-    margin: '0.3rem 0 0',
-    fontSize: '1.35rem',
-    fontWeight: 700,
-    color: colors.text,
-  },
-  statSub: {
-    margin: '0.15rem 0 0',
-    fontSize: '0.78rem',
-    color: colors.subtle,
-  },
-  card: {
-    background: colors.cardBg,
-    borderRadius: 12,
-    padding: '1.5rem',
-    marginBottom: '1.5rem',
-    boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    fontSize: '1.1rem',
-    fontWeight: 700,
-    color: colors.text,
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-    gap: '1rem',
-  },
-  error: {
-    margin: '0 0 0.75rem',
-    fontSize: '0.85rem',
-    color: colors.red,
-    fontWeight: 500,
-  },
-  list: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  listItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    padding: '0.85rem 1rem',
-    borderBottom: `1px solid ${colors.border}`,
-  },
-  listLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  listDate: {
-    margin: 0,
-    fontSize: '0.9rem',
-    fontWeight: 600,
-    color: colors.text,
-  },
-  listDetail: {
-    margin: '0.15rem 0 0',
-    fontSize: '0.78rem',
-    color: colors.subtle,
-  },
-  listRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  listTotal: {
-    margin: 0,
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: colors.primary,
-  },
-  empty: {
-    padding: '2rem 1.5rem',
-    textAlign: 'center',
-  },
-  emptyText: {
-    margin: 0,
-    fontSize: '0.9rem',
-    color: colors.subtle,
-  },
-};

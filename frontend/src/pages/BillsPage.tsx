@@ -6,19 +6,7 @@ import {
   deleteBill,
   type Bill,
 } from '../api/bills';
-
-// ── Colors ────────────────────────────────────────────────────────────
-const colors = {
-  bg: '#f0f9f4',
-  cardBg: '#ffffff',
-  primary: '#2d8a5e',
-  primaryLight: '#e8f5ee',
-  text: '#1a2e23',
-  subtle: '#5c7a68',
-  border: '#d1e7dc',
-  red: '#c0392b',
-  amber: '#e6a817',
-};
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const formatCurrency = (amount: number): string => '$' + amount.toFixed(2);
@@ -60,87 +48,29 @@ const freqLabel: Record<string, string> = {
   'semi-monthly': 'Semi-monthly',
 };
 
-// ── Spinner ───────────────────────────────────────────────────────────
-function Spinner({ size = 28 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        border: '3px solid #e0e0e0',
-        borderTopColor: colors.primary,
-        borderRadius: '50%',
-        animation: 'spin 0.7s linear infinite',
-        margin: '0 auto',
-      }}
-    />
-  );
-}
-
-// ── Inline Styles ─────────────────────────────────────────────────────
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem 0.75rem',
-  fontSize: '0.9rem',
-  border: `1px solid ${colors.border}`,
-  borderRadius: 8,
-  background: '#fafdfb',
-  color: colors.text,
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: '0.3rem',
-  fontSize: '0.82rem',
-  fontWeight: 600,
-  color: colors.subtle,
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: colors.primary,
-  color: '#fff',
-  border: 'none',
-  borderRadius: 8,
-  padding: '0.6rem 1.25rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnSecondary: React.CSSProperties = {
-  background: 'transparent',
-  color: colors.primary,
-  border: `1px solid ${colors.primary}`,
-  borderRadius: 6,
-  padding: '0.3rem 0.65rem',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  background: 'transparent',
-  color: colors.red,
-  border: `1px solid ${colors.red}`,
-  borderRadius: 6,
-  padding: '0.3rem 0.65rem',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-};
-
-const smallInputStyle: React.CSSProperties = {
-  ...inputStyle,
-  padding: '0.35rem 0.5rem',
-  fontSize: '0.82rem',
-};
-
 // ── BillsPage ─────────────────────────────────────────────────────────
 export default function BillsPage() {
+  const colors = useThemeStyles();
+
+  function Spinner({ size = 28 }: { size?: number }) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          border: `3px solid ${colors.border}`,
+          borderTopColor: colors.primary,
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+          margin: '0 auto',
+        }}
+      />
+    );
+  }
+
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState('1');
@@ -149,7 +79,6 @@ export default function BillsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Edit state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -161,7 +90,6 @@ export default function BillsPage() {
     setLoading(true);
     try {
       const data = await fetchBills();
-      // Sort by due_date numerically
       data.sort((a, b) => {
         const da = parseInt(a.due_date, 10) || 0;
         const db = parseInt(b.due_date, 10) || 0;
@@ -263,6 +191,159 @@ export default function BillsPage() {
     } catch {
       // silently fail
     }
+  };
+
+  // ── Styles ────────────────────────────────────────────────────
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.6rem 0.75rem',
+    fontSize: '0.9rem',
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    background: colors.inputBg,
+    color: colors.text,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: '0.3rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: colors.subtle,
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background: colors.primary,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '0.6rem 1.25rem',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
+
+  const btnSecondary: React.CSSProperties = {
+    background: 'transparent',
+    color: colors.primary,
+    border: `1px solid ${colors.primary}`,
+    borderRadius: 6,
+    padding: '0.3rem 0.65rem',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+  };
+
+  const btnDanger: React.CSSProperties = {
+    background: 'transparent',
+    color: colors.red,
+    border: `1px solid ${colors.red}`,
+    borderRadius: 6,
+    padding: '0.3rem 0.65rem',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+  };
+
+  const smallInputStyle: React.CSSProperties = {
+    ...inputStyle,
+    padding: '0.35rem 0.5rem',
+    fontSize: '0.82rem',
+  };
+
+  const styles: Record<string, React.CSSProperties> = {
+    card: {
+      background: colors.cardBg,
+      borderRadius: 12,
+      padding: '1.5rem',
+      marginBottom: '1.5rem',
+      boxShadow: `0 1px 4px ${colors.primaryLight}`,
+    },
+    sectionTitle: {
+      margin: '0 0 1rem',
+      fontSize: '1.1rem',
+      fontWeight: 700,
+      color: colors.text,
+    },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gap: '1rem',
+    },
+    error: {
+      margin: '0 0 0.75rem',
+      fontSize: '0.85rem',
+      color: colors.red,
+      fontWeight: 500,
+    },
+    list: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.5rem',
+    },
+    listItem: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '0.5rem',
+      padding: '0.85rem 0',
+      borderBottom: `1px solid ${colors.border}`,
+    },
+    listLeft: {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    listName: {
+      margin: 0,
+      fontSize: '0.95rem',
+      fontWeight: 600,
+      color: colors.text,
+    },
+    badge: {
+      display: 'inline-block',
+      padding: '0.15rem 0.5rem',
+      borderRadius: 20,
+      fontSize: '0.7rem',
+      fontWeight: 600,
+      marginLeft: '0.5rem',
+      verticalAlign: 'middle',
+    },
+    listMeta: {
+      margin: '0.15rem 0 0',
+      fontSize: '0.8rem',
+      color: colors.subtle,
+    },
+    listRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+    },
+    editRow: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.5rem',
+      padding: '0.75rem 0',
+      borderBottom: `1px solid ${colors.border}`,
+    },
+    editFields: {
+      display: 'flex',
+      gap: '0.5rem',
+      flexWrap: 'wrap',
+    },
+    editActions: {
+      display: 'flex',
+      gap: '0.5rem',
+    },
+    empty: {
+      padding: '2rem 1.5rem',
+      textAlign: 'center',
+    },
+    emptyText: {
+      margin: 0,
+      fontSize: '0.9rem',
+      color: colors.subtle,
+    },
   };
 
   return (
@@ -470,99 +551,3 @@ export default function BillsPage() {
     </div>
   );
 }
-
-// ── Styles Object ─────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  card: {
-    background: colors.cardBg,
-    borderRadius: 12,
-    padding: '1.5rem',
-    marginBottom: '1.5rem',
-    boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    fontSize: '1.1rem',
-    fontWeight: 700,
-    color: colors.text,
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-    gap: '1rem',
-  },
-  error: {
-    margin: '0 0 0.75rem',
-    fontSize: '0.85rem',
-    color: colors.red,
-    fontWeight: 500,
-  },
-  list: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  listItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    padding: '0.85rem 0',
-    borderBottom: `1px solid ${colors.border}`,
-  },
-  listLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  listName: {
-    margin: 0,
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    color: colors.text,
-  },
-  badge: {
-    display: 'inline-block',
-    padding: '0.15rem 0.5rem',
-    borderRadius: 20,
-    fontSize: '0.7rem',
-    fontWeight: 600,
-    marginLeft: '0.5rem',
-    verticalAlign: 'middle',
-  },
-  listMeta: {
-    margin: '0.15rem 0 0',
-    fontSize: '0.8rem',
-    color: colors.subtle,
-  },
-  listRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  editRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-    padding: '0.75rem 0',
-    borderBottom: `1px solid ${colors.border}`,
-  },
-  editFields: {
-    display: 'flex',
-    gap: '0.5rem',
-    flexWrap: 'wrap',
-  },
-  editActions: {
-    display: 'flex',
-    gap: '0.5rem',
-  },
-  empty: {
-    padding: '2rem 1.5rem',
-    textAlign: 'center',
-  },
-  emptyText: {
-    margin: 0,
-    fontSize: '0.9rem',
-    color: colors.subtle,
-  },
-};
