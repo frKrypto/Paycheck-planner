@@ -1,3 +1,5 @@
+import { useThemeStyles } from '../hooks/useThemeStyles';
+
 const categoryColors: Record<string, string> = {
   housing: '#2d8a5e',
   utilities: '#3a9d6a',
@@ -14,6 +16,7 @@ const getCategoryColor = (category: string): string => {
 };
 
 export default function CategoryBadge({ category }: { category: string }) {
+  const colors = useThemeStyles();
   const bg = getCategoryColor(category);
   return (
     <span
@@ -23,7 +26,7 @@ export default function CategoryBadge({ category }: { category: string }) {
         borderRadius: 12,
         fontSize: '0.72rem',
         fontWeight: 600,
-        color: '#fff',
+        color: colors.cardBg,
         backgroundColor: bg,
         textTransform: 'capitalize',
       }}

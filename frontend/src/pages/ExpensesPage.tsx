@@ -5,18 +5,7 @@ import {
   deleteExpense,
   type Expense,
 } from '../api/expenses';
-
-// ── Colors ────────────────────────────────────────────────────────────
-const colors = {
-  bg: '#f0f9f4',
-  cardBg: '#ffffff',
-  primary: '#2d8a5e',
-  primaryLight: '#e8f5ee',
-  text: '#1a2e23',
-  subtle: '#5c7a68',
-  border: '#d1e7dc',
-  red: '#c0392b',
-};
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const formatCurrency = (amount: number): string => '$' + amount.toFixed(2);
@@ -47,71 +36,29 @@ const categoryColors: Record<string, string> = {
 
 const getCatColor = (cat: string): string => categoryColors[cat] ?? categoryColors.other;
 
-// ── Spinner ───────────────────────────────────────────────────────────
-function Spinner({ size = 28 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        border: '3px solid #e0e0e0',
-        borderTopColor: colors.primary,
-        borderRadius: '50%',
-        animation: 'spin 0.7s linear infinite',
-        margin: '0 auto',
-      }}
-    />
-  );
-}
-
-// ── Styles ────────────────────────────────────────────────────────────
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem 0.75rem',
-  fontSize: '0.9rem',
-  border: `1px solid ${colors.border}`,
-  borderRadius: 8,
-  background: '#fafdfb',
-  color: colors.text,
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: '0.3rem',
-  fontSize: '0.82rem',
-  fontWeight: 600,
-  color: colors.subtle,
-};
-
-const btnPrimary: React.CSSProperties = {
-  background: colors.primary,
-  color: '#fff',
-  border: 'none',
-  borderRadius: 8,
-  padding: '0.6rem 1.25rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  background: 'transparent',
-  color: colors.red,
-  border: `1px solid ${colors.red}`,
-  borderRadius: 6,
-  padding: '0.3rem 0.65rem',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-};
-
 // ── ExpensesPage ──────────────────────────────────────────────────────
 export default function ExpensesPage() {
+  const colors = useThemeStyles();
+
+  function Spinner({ size = 28 }: { size?: number }) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          border: `3px solid ${colors.border}`,
+          borderTopColor: colors.primary,
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+          margin: '0 auto',
+        }}
+      />
+    );
+  }
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form
   const [category, setCategory] = useState('groceries');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
@@ -119,7 +66,6 @@ export default function ExpensesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Filters
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
@@ -188,6 +134,146 @@ export default function ExpensesPage() {
   };
 
   const today = new Date().toISOString().split('T')[0];
+
+  // ── Styles ────────────────────────────────────────────────────
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.6rem 0.75rem',
+    fontSize: '0.9rem',
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    background: colors.inputBg,
+    color: colors.text,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: '0.3rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: colors.subtle,
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background: colors.primary,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '0.6rem 1.25rem',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
+
+  const btnDanger: React.CSSProperties = {
+    background: 'transparent',
+    color: colors.red,
+    border: `1px solid ${colors.red}`,
+    borderRadius: 6,
+    padding: '0.3rem 0.65rem',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+  };
+
+  const styles: Record<string, React.CSSProperties> = {
+    card: {
+      background: colors.cardBg,
+      borderRadius: 12,
+      padding: '1.5rem',
+      marginBottom: '1.5rem',
+      boxShadow: `0 1px 4px ${colors.primaryLight}`,
+    },
+    sectionTitle: {
+      margin: '0 0 1rem',
+      fontSize: '1.1rem',
+      fontWeight: 700,
+      color: colors.text,
+    },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gap: '1rem',
+    },
+    error: {
+      margin: '0 0 0.75rem',
+      fontSize: '0.85rem',
+      color: colors.red,
+      fontWeight: 500,
+    },
+    filterRow: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '0.75rem',
+      marginBottom: '1rem',
+    },
+    filterControls: {
+      display: 'flex',
+      gap: '0.5rem',
+      flexWrap: 'wrap',
+    },
+    list: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.5rem',
+    },
+    listItem: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '0.5rem',
+      padding: '0.85rem 0',
+      borderBottom: `1px solid ${colors.border}`,
+    },
+    listLeft: {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    listDate: {
+      margin: 0,
+      fontSize: '0.9rem',
+      fontWeight: 600,
+      color: colors.text,
+    },
+    badge: {
+      display: 'inline-block',
+      padding: '0.15rem 0.5rem',
+      borderRadius: 20,
+      fontSize: '0.7rem',
+      fontWeight: 600,
+      marginLeft: '0.5rem',
+      verticalAlign: 'middle',
+    },
+    listDesc: {
+      margin: '0.15rem 0 0',
+      fontSize: '0.8rem',
+      color: colors.subtle,
+    },
+    listRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+    },
+    listAmount: {
+      margin: 0,
+      fontSize: '1rem',
+      fontWeight: 700,
+      color: colors.text,
+    },
+    empty: {
+      padding: '2rem 1.5rem',
+      textAlign: 'center',
+    },
+    emptyText: {
+      margin: 0,
+      fontSize: '0.9rem',
+      color: colors.subtle,
+    },
+  };
 
   return (
     <div>
@@ -333,102 +419,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-
-// ── Styles Object ─────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  card: {
-    background: colors.cardBg,
-    borderRadius: 12,
-    padding: '1.5rem',
-    marginBottom: '1.5rem',
-    boxShadow: '0 1px 4px rgba(45, 138, 94, 0.06)',
-  },
-  sectionTitle: {
-    margin: '0 0 1rem',
-    fontSize: '1.1rem',
-    fontWeight: 700,
-    color: colors.text,
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-    gap: '1rem',
-  },
-  error: {
-    margin: '0 0 0.75rem',
-    fontSize: '0.85rem',
-    color: colors.red,
-    fontWeight: 500,
-  },
-  filterRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.75rem',
-    marginBottom: '1rem',
-  },
-  filterControls: {
-    display: 'flex',
-    gap: '0.5rem',
-    flexWrap: 'wrap',
-  },
-  list: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  listItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    padding: '0.85rem 0',
-    borderBottom: `1px solid ${colors.border}`,
-  },
-  listLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  listDate: {
-    margin: 0,
-    fontSize: '0.9rem',
-    fontWeight: 600,
-    color: colors.text,
-  },
-  badge: {
-    display: 'inline-block',
-    padding: '0.15rem 0.5rem',
-    borderRadius: 20,
-    fontSize: '0.7rem',
-    fontWeight: 600,
-    marginLeft: '0.5rem',
-    verticalAlign: 'middle',
-  },
-  listDesc: {
-    margin: '0.15rem 0 0',
-    fontSize: '0.8rem',
-    color: colors.subtle,
-  },
-  listRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  listAmount: {
-    margin: 0,
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: colors.text,
-  },
-  empty: {
-    padding: '2rem 1.5rem',
-    textAlign: 'center',
-  },
-  emptyText: {
-    margin: 0,
-    fontSize: '0.9rem',
-    color: colors.subtle,
-  },
-};
