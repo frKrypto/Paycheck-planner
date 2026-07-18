@@ -1,9 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
+import IncomePage from './pages/IncomePage';
+import ExpensesPage from './pages/ExpensesPage';
+import BillsPage from './pages/BillsPage';
 
 export default function App() {
   return (
@@ -15,11 +19,43 @@ export default function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <Layout>
+                <DashboardPage />
+              </Layout>
             </ProtectedRoute>
           }
         />
-        {/* Catch-all: redirect unknown routes to dashboard (which will redirect to login if needed) */}
+        <Route
+          path="/income"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <IncomePage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ExpensesPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bills"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <BillsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        {/* Catch-all: redirect unknown routes to dashboard */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
