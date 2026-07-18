@@ -20,9 +20,15 @@ app.use(express.json());
 // Initialize database
 initDb();
 
+const startTime = Date.now();
+
 // Routes
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({
+    status: 'ok',
+    version: '1.0.0',
+    uptime: Math.floor((Date.now() - startTime) / 1000),
+  });
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/shifts', shiftRoutes);
