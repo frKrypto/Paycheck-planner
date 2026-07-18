@@ -5,6 +5,8 @@
  * current balance, upcoming bills, and expected income.
  */
 
+export type IncomeVolatility = 'stable' | 'moderate' | 'volatile';
+
 export interface SafeToSpendDetails {
   daysUntilPaycheck: number;
   totalBillsDue: number;
@@ -12,7 +14,11 @@ export interface SafeToSpendDetails {
   dailyAmount: number;
   bufferRate: number;
   billsConsidered: number;
+  warnings: string[];
+  /** @deprecated use warnings array; kept for backward compatibility */
   warning: string | null;
+  incomeVolatility: IncomeVolatility;
+  weightedAvgIncome: number;
 }
 
 export interface CalculateSafeToSpendParams {
@@ -20,8 +26,36 @@ export interface CalculateSafeToSpendParams {
   upcomingBills: Array<{ amount: number; projected_due_date: string }>;
   nextPaycheckDate: string;
   expectedPaycheckAmount: number;
-  /** Buffer multiplier, defaults to 0.85 (keep 15% buffer) */
-  bufferRate?: number;
+  /** Array of weekly earnings for the last 8 weeks (most recent first). Used for volatility calculation. */
+  incomeHistory?: number[];
+}
+
+/**
+ * Calculate the coefficient of variation (CV = stdDev / mean).
+ * Returns 0 if mean is 0 (no variation detectable).
+ */
+function coefficientOfVariation(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+  if (mean === 0) return 0;
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance) / mean;
+}
+
+/**
+ * Map coefficient of variation to a buffer rate.
+ * - CV < 0.2 (stable income) → bufferRate = 0.90 (10% buffer)
+ * - CV 0.2–0.5 (moderate) → bufferRate = 0.85 (15% buffer)
+ * - CV > 0.5 (volatile) → bufferRate = 0.75 (25% buffer)
+ */
+function cvToBufferRate(cv: number): { bufferRate: number; incomeVolatility: IncomeVolatility } {
+  if (cv < 0.2) {
+    return { bufferRate: 0.90, incomeVolatility: 'stable' };
+  }
+  if (cv <= 0.5) {
+    return { bufferRate: 0.85, incomeVolatility: 'moderate' };
+  }
+  return { bufferRate: 0.75, incomeVolatility: 'volatile' };
 }
 
 export function calculateSafeToSpend(
@@ -32,8 +66,19 @@ export function calculateSafeToSpend(
     upcomingBills,
     nextPaycheckDate,
     expectedPaycheckAmount,
-    bufferRate = 0.85,
+    incomeHistory,
   } = params;
+
+  // ── Volatility-aware buffer rate ──────────────────────────────────
+  let bufferRate = 0.85;
+  let incomeVolatility: IncomeVolatility = 'moderate';
+
+  if (incomeHistory && incomeHistory.length >= 2) {
+    const cv = coefficientOfVariation(incomeHistory);
+    const result = cvToBufferRate(cv);
+    bufferRate = result.bufferRate;
+    incomeVolatility = result.incomeVolatility;
+  }
 
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -59,19 +104,11 @@ export function calculateSafeToSpend(
 
   // 4 & 5. Determine warning and safe-to-spend
   let safeToSpend: number;
-  let warning: string | null = null;
-
-  if (expectedPaycheckAmount === 0 && upcomingBills.length === 0) {
-    // No income history and no bills — could go either way.
-    // Treat as no_income_history since we have no baseline.
-    // Actually, let's check: if there truly are no shifts at all...
-    // We'll handle the "no_income_history" case in the route layer.
-    // Here we just compute what we can.
-  }
+  const warnings: string[] = [];
 
   if (availableAfterBills < 0) {
     safeToSpend = 0;
-    warning = 'income_below_bills';
+    warnings.push('income_below_bills');
   } else {
     // 5. Daily amount = availableAfterBills / daysUntilPaycheck
     const dailyAmount = availableAfterBills / daysUntilPaycheck;
@@ -96,7 +133,10 @@ export function calculateSafeToSpend(
     dailyAmount: dailyAmountBeforeBuffer,
     bufferRate,
     billsConsidered: billsInWindow.length,
-    warning,
+    warnings,
+    warning: warnings.length > 0 ? warnings[0] : null,
+    incomeVolatility,
+    weightedAvgIncome: expectedPaycheckAmount,
   };
 
   return { safeToSpend, details };

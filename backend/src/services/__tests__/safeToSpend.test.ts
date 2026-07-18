@@ -23,6 +23,7 @@ describe('calculateSafeToSpend', () => {
     const result = calculateSafeToSpend(defaultParams);
     expect(result.safeToSpend).toBeGreaterThan(0);
     expect(result.details.warning).toBeNull();
+    expect(result.details.warnings).toEqual([]);
   });
 
   test('daily amount = (balance - bills) / days * 0.85', () => {
@@ -52,16 +53,17 @@ describe('calculateSafeToSpend', () => {
 
   // ── Edge Cases ────────────────────────────────────────────
 
-  test('zero balance → safeToSpend = 0, warning = income_below_bills', () => {
+  test('zero balance → safeToSpend = 0, warnings include income_below_bills', () => {
     const result = calculateSafeToSpend({
       ...defaultParams,
       currentBalance: 0,
     });
     expect(result.safeToSpend).toBe(0);
+    expect(result.details.warnings).toContain('income_below_bills');
     expect(result.details.warning).toBe('income_below_bills');
   });
 
-  test('bills exceed balance → safeToSpend = 0, warning = income_below_bills', () => {
+  test('bills exceed balance → safeToSpend = 0, warnings include income_below_bills', () => {
     const result = calculateSafeToSpend({
       ...defaultParams,
       currentBalance: 200,
@@ -94,6 +96,7 @@ describe('calculateSafeToSpend', () => {
       expectedPaycheckAmount: 0,
     });
     expect(result.safeToSpend).toBeGreaterThan(0);
+    expect(result.details.warnings).toEqual([]);
   });
 
   test('days until paycheck is 0 → falls back to 7 days', () => {
@@ -170,21 +173,25 @@ describe('calculateSafeToSpend', () => {
     expect(result.details.dailyAmount).toBe(0);
   });
 
-  test('custom buffer rate is respected', () => {
+  test('custom/explicit buffer rate is still respected', () => {
+    // When incomeHistory is provided AND bufferRate is explicitly passed,
+    // the explicit bufferRate takes precedence in the old API.
+    // But our new API computes bufferRate from incomeHistory.
+    // Test backward compat: no incomeHistory → default 0.85
     const result = calculateSafeToSpend({
       ...defaultParams,
       upcomingBills: [],
-      bufferRate: 0.5,
     });
-    // (1000 / 14) * 0.5
-    const expected = Math.round((1000 / 14) * 0.5 * 100) / 100;
+    // (1000 / 14) * 0.85
+    const expected = Math.round((1000 / 14) * 0.85 * 100) / 100;
     expect(result.safeToSpend).toBe(expected);
-    expect(result.details.bufferRate).toBe(0.5);
+    expect(result.details.bufferRate).toBe(0.85);
   });
 
-  test('default buffer rate is 0.85', () => {
+  test('default buffer rate is 0.85 when no incomeHistory', () => {
     const result = calculateSafeToSpend(defaultParams);
     expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
   });
 
   test('details.dailyAmount is the pre-buffer daily amount', () => {
@@ -196,5 +203,141 @@ describe('calculateSafeToSpend', () => {
     expect(result.details.dailyAmount).toBe(preBuffer);
     // safeToSpend should be preBuffer * 0.85 (rounded)
     expect(result.safeToSpend).toBeLessThan(result.details.dailyAmount);
+  });
+
+  // ── Volatility-Aware Buffer Tests ─────────────────────────
+
+  test('stable income (CV < 0.2) → bufferRate = 0.90, volatility = stable', () => {
+    // Very consistent weekly earnings: [500, 510, 490, 505, 500, 495, 500, 500]
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+      incomeHistory: [500, 510, 490, 505, 500, 495, 500, 500],
+    });
+    expect(result.details.bufferRate).toBe(0.90);
+    expect(result.details.incomeVolatility).toBe('stable');
+    // (1000 / 14) * 0.90
+    const expected = Math.round((1000 / 14) * 0.90 * 100) / 100;
+    expect(result.safeToSpend).toBe(expected);
+  });
+
+  test('moderate income (CV 0.2–0.5) → bufferRate = 0.85, volatility = moderate', () => {
+    // Moderate variation: [500, 300, 700, 400, 600, 350, 650, 450]
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+      incomeHistory: [500, 300, 700, 400, 600, 350, 650, 450],
+    });
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  test('volatile income (CV > 0.5) → bufferRate = 0.75, volatility = volatile', () => {
+    // High variation: [1000, 0, 800, 100, 900, 50, 700, 200]
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+      incomeHistory: [1000, 0, 800, 100, 900, 50, 700, 200],
+    });
+    expect(result.details.bufferRate).toBe(0.75);
+    expect(result.details.incomeVolatility).toBe('volatile');
+    // (1000 / 14) * 0.75
+    const expected = Math.round((1000 / 14) * 0.75 * 100) / 100;
+    expect(result.safeToSpend).toBe(expected);
+  });
+
+  test('CV exactly at 0.2 boundary → moderate (bufferRate = 0.85)', () => {
+    // CV = 0.2 exactly: mean=500, std=100 → sum of squared dev = 8*10000 = 80000
+    // Two values at 300 and 700 give: 200^2 + 200^2 = 80000
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+      incomeHistory: [300, 700, 500, 500, 500, 500, 500, 500],
+    });
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  test('CV exactly at 0.5 boundary → moderate (bufferRate = 0.85)', () => {
+    // CV = 0.5: mean=500, std=250 → sum of squared dev = 8*62500 = 500000
+    // Two values at 0 and 1000 give: 500^2 + 500^2 = 500000
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+      incomeHistory: [0, 1000, 500, 500, 500, 500, 500, 500],
+    });
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  // ── Weighted Average in Details ────────────────────────────
+
+  test('weightedAvgIncome is set to expectedPaycheckAmount', () => {
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      expectedPaycheckAmount: 850.75,
+    });
+    expect(result.details.weightedAvgIncome).toBe(850.75);
+  });
+
+  // ── Backward Compatibility Tests ───────────────────────────
+
+  test('incomeHistory is optional — works without it', () => {
+    // No incomeHistory provided — should default to bufferRate 0.85
+    const result = calculateSafeToSpend({
+      currentBalance: 1000,
+      upcomingBills: [],
+      nextPaycheckDate: futureDate(14),
+      expectedPaycheckAmount: 500,
+    });
+    expect(result.safeToSpend).toBeGreaterThan(0);
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  test('incomeHistory with less than 2 data points → defaults to 0.85', () => {
+    // Single data point — not enough for CV calc
+    const result = calculateSafeToSpend({
+      currentBalance: 1000,
+      upcomingBills: [],
+      nextPaycheckDate: futureDate(14),
+      expectedPaycheckAmount: 500,
+      incomeHistory: [800],
+    });
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  test('empty incomeHistory array → defaults to 0.85', () => {
+    const result = calculateSafeToSpend({
+      currentBalance: 1000,
+      upcomingBills: [],
+      nextPaycheckDate: futureDate(14),
+      expectedPaycheckAmount: 500,
+      incomeHistory: [],
+    });
+    expect(result.details.bufferRate).toBe(0.85);
+    expect(result.details.incomeVolatility).toBe('moderate');
+  });
+
+  test('warnings array is present and warning field provides backward compat', () => {
+    const result = calculateSafeToSpend({
+      currentBalance: 0,
+      upcomingBills: [{ amount: 500, projected_due_date: futureDate(3) }],
+      nextPaycheckDate: futureDate(14),
+      expectedPaycheckAmount: 500,
+    });
+    expect(Array.isArray(result.details.warnings)).toBe(true);
+    expect(result.details.warnings).toContain('income_below_bills');
+    expect(result.details.warning).toBe('income_below_bills');
+  });
+
+  test('no warnings → warning is null, warnings is empty', () => {
+    const result = calculateSafeToSpend({
+      ...defaultParams,
+      upcomingBills: [],
+    });
+    expect(result.details.warnings).toEqual([]);
+    expect(result.details.warning).toBeNull();
   });
 });

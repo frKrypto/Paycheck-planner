@@ -207,11 +207,83 @@ incomeRouter.get('/stats', (req: AuthRequest, res: Response): void => {
     0
   );
 
-  // Divide by 4 weeks (or fewer if less data)
-  const weeksAvailable = Math.min(4, Math.max(1, Math.ceil(recentShifts.length > 0 ? 28 / 7 : 1)));
   const rolling_4wk_avg = recentShifts.length > 0
     ? Math.round((totalRecentEarnings / 4) * 100) / 100
     : 0;
+
+  // ── Weighted 4-week average ──────────────────────────────────────
+  // Fetch shifts with dates for bucketing into weighted groups.
+  // We consider ALL shifts (no 28-day limit for the weighted calc).
+  const allShiftsWithDates = db.prepare(
+    `SELECT date, hours_worked, hourly_rate, tips
+     FROM shifts
+     WHERE user_id = ?
+     ORDER BY date DESC`
+  ).all(req.userId!) as { date: string; hours_worked: number; hourly_rate: number; tips: number }[];
+
+  let weighted_4wk_avg = 0;
+
+  if (allShiftsWithDates.length > 0) {
+    const todayMs = now.getTime();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    // Bucket shifts into weeks (7-day buckets from today), oldest first.
+    // week 0: days 0-6, week 1: days 7-13, week 2: days 14-20, etc.
+    const weeklyEarnings: { weekIndex: number; earnings: number }[] = [];
+
+    for (const shift of allShiftsWithDates) {
+      const shiftDate = new Date(shift.date + 'T00:00:00Z');
+      const daysAgo = Math.floor((todayMs - shiftDate.getTime()) / MS_PER_DAY);
+      if (daysAgo < 0) continue; // future shifts — skip
+      const weekIndex = Math.floor(daysAgo / 7);
+      const earnings = (shift.hours_worked * shift.hourly_rate) + shift.tips;
+
+      // Find or create week bucket
+      let bucket = weeklyEarnings.find(w => w.weekIndex === weekIndex);
+      if (!bucket) {
+        bucket = { weekIndex, earnings: 0 };
+        weeklyEarnings.push(bucket);
+      }
+      bucket.earnings += earnings;
+    }
+
+    // Sort by weekIndex ascending (oldest first)
+    weeklyEarnings.sort((a, b) => a.weekIndex - b.weekIndex);
+
+    // Determine the date range covered by our data
+    const maxDaysCovered = weeklyEarnings.length > 0
+      ? (Math.max(...weeklyEarnings.map(w => w.weekIndex)) + 1) * 7
+      : 0;
+
+    // If fewer than 14 days of data, use equal weight
+    if (maxDaysCovered < 14) {
+      const totalWeighted = weeklyEarnings.reduce((sum, w) => sum + w.earnings, 0);
+      weighted_4wk_avg = weeklyEarnings.length > 0
+        ? Math.round((totalWeighted / weeklyEarnings.length) * 100) / 100
+        : 0;
+    } else {
+      // Apply weights: weekIndex 0-1 (days 0-13) = 3x, weekIndex 2-3 (days 14-27) = 1x, weekIndex 4+ (days 28+) = 0.5x
+      let weightedSum = 0;
+      let weightSum = 0;
+
+      for (const bucket of weeklyEarnings) {
+        let weight: number;
+        if (bucket.weekIndex <= 1) {
+          weight = 3;
+        } else if (bucket.weekIndex <= 3) {
+          weight = 1;
+        } else {
+          weight = 0.5;
+        }
+        weightedSum += bucket.earnings * weight;
+        weightSum += weight;
+      }
+
+      weighted_4wk_avg = weightSum > 0
+        ? Math.round((weightedSum / weightSum) * 100) / 100
+        : 0;
+    }
+  }
 
   // Total this month: current calendar month
   const year = now.getFullYear();
@@ -246,6 +318,7 @@ incomeRouter.get('/stats', (req: AuthRequest, res: Response): void => {
 
   res.json({
     rolling_4wk_avg,
+    weighted_4wk_avg,
     total_this_month: Math.round(total_this_month * 100) / 100,
     shift_count,
     pay_schedule,
