@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { fetchSafeToSpend, type SafeToSpendResponse } from '../api/safeToSpend';
 import { fetchIncomeStats, fetchShifts, type IncomeStats, type Shift } from '../api/income';
 import { fetchExpenses, type Expense } from '../api/expenses';
@@ -171,7 +170,6 @@ function computeMonthlyAggregates(
 // ── Main Dashboard ────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
 
   // State
   const [balanceInput, setBalanceInput] = useState('');
@@ -247,19 +245,6 @@ export default function DashboardPage() {
   const safeAmountColor = safeToSpendColor(safeToSpendAmount);
 
   return (
-    <div style={styles.page}>
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <header style={styles.header}>
-        <h1 style={styles.headerTitle}>PayCheck Planner</h1>
-        <div style={styles.userArea}>
-          <span style={styles.userName}>{user?.name}</span>
-          <button style={styles.logoutBtn} onClick={logout}>
-            Sign Out
-          </button>
-        </div>
-      </header>
-
-      <main style={styles.main}>
         <div style={styles.container}>
           {/* ── Balance Input ────────────────────────────────────── */}
           <form onSubmit={handleBalanceSubmit} style={styles.balanceForm}>
@@ -480,8 +465,6 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-        </div>
-      </main>
     </div>
   );
 }
