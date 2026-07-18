@@ -165,6 +165,11 @@ router.post('/', (req: AuthRequest, res: Response): void => {
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(req.userId!, name.trim(), amount, dueDateStr, frequency, category);
 
+  // Record initial amount in bill_history
+  db.prepare(
+    'INSERT INTO bill_history (bill_id, amount) VALUES (?, ?)'
+  ).run(result.lastInsertRowid, amount);
+
   const bill = db.prepare('SELECT * FROM bills WHERE id = ?').get(result.lastInsertRowid);
 
   res.status(201).json(bill);
@@ -291,6 +296,13 @@ router.put('/:id', (req: AuthRequest, res: Response): void => {
 
   const { name, amount, due_date, frequency, category } = req.body;
   const dueDateStr = String(due_date).padStart(2, '0');
+
+  // If amount changed, record old amount in bill_history
+  if ((existing as any).amount !== amount) {
+    db.prepare(
+      'INSERT INTO bill_history (bill_id, amount) VALUES (?, ?)'
+    ).run(id, (existing as any).amount);
+  }
 
   db.prepare(
     `UPDATE bills

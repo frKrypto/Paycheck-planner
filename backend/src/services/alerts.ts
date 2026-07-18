@@ -1,7 +1,7 @@
 import { computeNextPaycheck, computeProjectedDueDate } from './dateUtils';
 
 export interface BillAlert {
-  type: 'IMMINENT_BILL' | 'LOW_SAFE_TO_SPEND' | 'BILL_DUE_BEFORE_PAYCHECK';
+  type: 'IMMINENT_BILL' | 'LOW_SAFE_TO_SPEND' | 'BILL_DUE_BEFORE_PAYCHECK' | 'BILL_INCREASE' | 'SUBSCRIPTION_REVIEW';
   severity: 'warning' | 'critical';
   title: string;
   message: string;
@@ -12,6 +12,9 @@ export interface BillAlert {
     due_date: string;
     projected_due_date: string;
   };
+  percentIncrease?: number;
+  subscriptionCount?: number;
+  totalMonthly?: number;
 }
 
 export interface GenerateAlertsInput {
@@ -22,10 +25,12 @@ export interface GenerateAlertsInput {
     due_date: string;
     frequency: string;
     category: string;
+    last_reviewed_at?: string | null;
   }>;
   weightedWeeklyIncome: number;
   paySchedule: string;
   today?: Date;
+  billHistory?: Array<{ bill_id: number; amount: number; recorded_at: string }>;
 }
 
 export function generateAlerts(input: GenerateAlertsInput): BillAlert[] {
@@ -133,6 +138,70 @@ export function generateAlerts(input: GenerateAlertsInput): BillAlert[] {
         projected_due_date: bill.projected_due_date,
       },
     });
+  }
+
+  // ── BILL_INCREASE ─────────────────────────────────────────────
+  if (input.billHistory && input.billHistory.length > 0) {
+    for (const bill of input.bills) {
+      // Find the most recent previous amount for this bill
+      const historyForBill = input.billHistory
+        .filter((h) => h.bill_id === bill.id)
+        .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
+
+      const previous = historyForBill[0];
+      if (previous && previous.amount > 0 && bill.amount > previous.amount * 1.1) {
+        const percentIncrease = Math.round(
+          ((bill.amount - previous.amount) / previous.amount) * 100
+        );
+        alerts.push({
+          type: 'BILL_INCREASE',
+          severity: 'warning',
+          title: 'Bill increase detected',
+          message: `${bill.name} increased from $${previous.amount.toFixed(2)} to $${bill.amount.toFixed(2)}`,
+          bill: {
+            id: bill.id,
+            name: bill.name,
+            amount: bill.amount,
+            due_date: bill.due_date,
+            projected_due_date: billsWithProjected.find(
+              (b) => b.id === bill.id
+            )!.projected_due_date,
+          },
+          percentIncrease,
+        });
+      }
+    }
+  }
+
+  // ── SUBSCRIPTION_REVIEW ───────────────────────────────────────
+  const subscriptions = input.bills.filter(
+    (b) => b.category === 'subscriptions'
+  );
+
+  if (subscriptions.length > 0) {
+    const thirtyDaysAgo = addDays(today, -30);
+    const thirtyDaysAgoStr = toDateStr(thirtyDaysAgo);
+
+    const needsReview = subscriptions.filter(
+      (s) =>
+        !s.last_reviewed_at || s.last_reviewed_at < thirtyDaysAgoStr
+    );
+
+    if (needsReview.length > 0) {
+      const totalMonthly = subscriptions.reduce(
+        (sum, b) => sum + b.amount,
+        0
+      );
+
+      alerts.push({
+        type: 'SUBSCRIPTION_REVIEW',
+        severity: 'warning',
+        title: 'Review your subscriptions',
+        message: `${subscriptions.length} subscriptions totaling $${totalMonthly.toFixed(2)}/mo haven't been reviewed`,
+        subscriptionCount: subscriptions.length,
+        totalMonthly,
+      });
+    }
   }
 
   return alerts;
