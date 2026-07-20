@@ -5,6 +5,7 @@ import { fetchIncomeStats, fetchShifts, type IncomeStats, type Shift } from '../
 import { fetchExpenses, type Expense } from '../api/expenses';
 import { fetchUpcomingBills, type UpcomingBill } from '../api/bills';
 import { fetchAlerts, type BillAlert } from '../api/alerts';
+import { fetchEmergencyFund, type EmergencyFundResponse, type EmergencyFundRating } from '../api/emergencyFund';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import CategoryBadge from '../components/CategoryBadge';
 import {
@@ -108,6 +109,13 @@ export default function DashboardPage() {
     volatile: { label: 'Volatile', color: colors.amber },
   };
 
+  const emergencyRatingConfig: Record<EmergencyFundRating, { label: string; color: string }> = {
+    critical: { label: 'Critical', color: colors.red },
+    low: { label: 'Low', color: colors.amber },
+    adequate: { label: 'Adequate', color: colors.green },
+    strong: { label: 'Strong', color: colors.primary },
+  };
+
   // State
   const [balanceInput, setBalanceInput] = useState('');
   const [queriedBalance, setQueriedBalance] = useState<number | null>(null);
@@ -124,6 +132,15 @@ export default function DashboardPage() {
 
   const [alerts, setAlerts] = useState<BillAlert[]>([]);
   const [criticalAlertCount, setCriticalAlertCount] = useState(0);
+
+  // Emergency Fund state
+  const [emergencySavingsInput, setEmergencySavingsInput] = useState(() => {
+    const stored = localStorage.getItem('emergencyFundSavings');
+    return stored || '';
+  });
+  const [emergencyFundData, setEmergencyFundData] = useState<EmergencyFundResponse | null>(null);
+  const [emergencyFundLoading, setEmergencyFundLoading] = useState(false);
+  const [emergencyFundError, setEmergencyFundError] = useState<string | null>(null);
 
   // Fetch safe-to-spend when balance is submitted
   const loadSafeToSpend = useCallback(async (balance: number) => {
@@ -149,6 +166,46 @@ export default function DashboardPage() {
       loadSafeToSpend(parsed);
     }
   };
+
+  // Fetch emergency fund when savings input changes
+  const loadEmergencyFund = useCallback(async (savings: number) => {
+    setEmergencyFundLoading(true);
+    setEmergencyFundError(null);
+    try {
+      const data = await fetchEmergencyFund(savings);
+      setEmergencyFundData(data);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to load emergency fund data';
+      setEmergencyFundError(msg);
+    } finally {
+      setEmergencyFundLoading(false);
+    }
+  }, []);
+
+  const handleEmergencySavingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmergencySavingsInput(value);
+    localStorage.setItem('emergencyFundSavings', value);
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && parsed >= 0) {
+      loadEmergencyFund(parsed);
+    } else if (value === '') {
+      setEmergencyFundData(null);
+      setEmergencyFundError(null);
+    }
+  };
+
+  // Auto-fetch emergency fund on mount if saved value exists
+  useEffect(() => {
+    const stored = localStorage.getItem('emergencyFundSavings');
+    if (stored) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed) && parsed >= 0) {
+        loadEmergencyFund(parsed);
+      }
+    }
+  }, [loadEmergencyFund]);
 
   // Fetch alerts on mount and when balance changes
   const loadAlerts = useCallback(async () => {
@@ -674,6 +731,92 @@ export default function DashboardPage() {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    // Emergency Fund styles
+    emergencyCard: {
+      background: colors.cardBg,
+      borderRadius: 14,
+      padding: '1.5rem',
+      boxShadow: `0 2px 12px ${colors.primaryLight}`,
+      border: `2px solid ${colors.primaryLight}`,
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '1.25rem',
+    },
+    emergencyInputRow: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '0.4rem',
+    },
+    emergencyLabel: {
+      fontSize: '0.85rem',
+      fontWeight: 600,
+      color: colors.subtle,
+    },
+    emergencyInputGroup: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.4rem',
+    },
+    emergencyInput: {
+      flex: 1,
+      padding: '0.55rem 0.75rem',
+      borderRadius: 8,
+      border: `1.5px solid ${colors.border}`,
+      fontSize: '1rem',
+      color: colors.text,
+      outline: 'none',
+      background: colors.inputBg,
+      maxWidth: 220,
+    },
+    emergencyResult: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      gap: '0.6rem',
+      paddingTop: '0.5rem',
+      borderTop: `1px solid ${colors.border}`,
+    },
+    emergencyDays: {
+      margin: 0,
+      fontSize: '2.75rem',
+      fontWeight: 800,
+      lineHeight: 1.1,
+    },
+    emergencyDaysUnit: {
+      fontSize: '1.2rem',
+      fontWeight: 500,
+    },
+    emergencyRatingBadge: {
+      display: 'inline-block',
+      padding: '0.3rem 0.9rem',
+      borderRadius: 20,
+      fontSize: '0.85rem',
+      fontWeight: 700,
+      border: '2px solid',
+    },
+    emergencyDetails: {
+      display: 'flex',
+      gap: '2rem',
+      marginTop: '0.25rem',
+    },
+    emergencyDetailItem: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      gap: '0.1rem',
+    },
+    emergencyDetailLabel: {
+      fontSize: '0.72rem',
+      fontWeight: 600,
+      color: colors.subtle,
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.03em',
+    },
+    emergencyDetailValue: {
+      fontSize: '1rem',
+      fontWeight: 600,
+      color: colors.text,
+    },
   };
 
   return (
@@ -911,6 +1054,93 @@ export default function DashboardPage() {
           />
         </div>
       )}
+
+      {/* ── Emergency Fund ─────────────────────────────────────── */}
+      <div style={styles.section}>
+        <h2 style={styles.sectionTitle}>Emergency Fund</h2>
+        <div style={styles.emergencyCard}>
+          {/* Savings input */}
+          <div style={styles.emergencyInputRow}>
+            <label style={styles.emergencyLabel} htmlFor="emergency-savings">
+              Total Savings
+            </label>
+            <div style={styles.emergencyInputGroup}>
+              <span style={styles.dollarSign}>$</span>
+              <input
+                id="emergency-savings"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={emergencySavingsInput}
+                onChange={handleEmergencySavingsChange}
+                style={styles.emergencyInput}
+              />
+            </div>
+          </div>
+
+          {/* Result */}
+          {emergencyFundLoading ? (
+            <div style={styles.emergencyResult}>
+              <Spinner size={36} />
+              <p style={styles.loadingText}>Calculating...</p>
+            </div>
+          ) : emergencyFundError ? (
+            <div style={styles.emergencyResult}>
+              <p style={styles.errorText}>{emergencyFundError}</p>
+            </div>
+          ) : emergencyFundData ? (
+            <div style={styles.emergencyResult}>
+              <p
+                style={{
+                  ...styles.emergencyDays,
+                  color: emergencyRatingConfig[emergencyFundData.rating].color,
+                }}
+              >
+                {emergencyFundData.daysCovered === Infinity
+                  ? '∞'
+                  : emergencyFundData.daysCovered.toFixed(0)}
+                <span style={styles.emergencyDaysUnit}> days</span>
+              </p>
+              <span
+                style={{
+                  ...styles.emergencyRatingBadge,
+                  color: emergencyRatingConfig[emergencyFundData.rating].color,
+                  background:
+                    emergencyRatingConfig[emergencyFundData.rating].color +
+                    '18',
+                  borderColor: emergencyRatingConfig[emergencyFundData.rating].color,
+                }}
+              >
+                {emergencyRatingConfig[emergencyFundData.rating].label}
+              </span>
+              <div style={styles.emergencyDetails}>
+                <div style={styles.emergencyDetailItem}>
+                  <span style={styles.emergencyDetailLabel}>Monthly Expenses</span>
+                  <span style={styles.emergencyDetailValue}>
+                    {formatCurrency(emergencyFundData.monthlyExpenses)}
+                  </span>
+                </div>
+                <div style={styles.emergencyDetailItem}>
+                  <span style={styles.emergencyDetailLabel}>Daily Rate</span>
+                  <span style={styles.emergencyDetailValue}>
+                    {emergencyFundData.dailyRate > 0
+                      ? formatCurrency(emergencyFundData.dailyRate)
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={styles.emergencyResult}>
+              <p style={styles.placeholderText}>
+                Enter your savings balance to see how long you could cover
+                expenses without income.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Upcoming Bills List ─────────────────────────────── */}
       <div style={styles.section}>
