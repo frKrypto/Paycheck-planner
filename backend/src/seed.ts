@@ -16,6 +16,7 @@ function main(): void {
     db.prepare('DELETE FROM shifts WHERE user_id = ?').run(existingUser.id);
     db.prepare('DELETE FROM bills WHERE user_id = ?').run(existingUser.id);
     db.prepare('DELETE FROM expenses WHERE user_id = ?').run(existingUser.id);
+    db.prepare('DELETE FROM income_sources WHERE user_id = ?').run(existingUser.id);
     db.prepare('DELETE FROM users WHERE id = ?').run(existingUser.id);
     console.log('Cleared existing demo user data.');
   }
@@ -29,6 +30,25 @@ function main(): void {
 
   const userId = userResult.lastInsertRowid as number;
 
+  // ── Create income sources ────────────────────────────────────────────
+
+  const insertIncomeSource = db.prepare(
+    `INSERT INTO income_sources (user_id, name, hourly_rate, pay_schedule, is_default)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+
+  const restaurantResult = insertIncomeSource.run(
+    userId, 'Restaurant', 18.5, 'biweekly', 1
+  );
+  const restaurantId = restaurantResult.lastInsertRowid as number;
+
+  const uberResult = insertIncomeSource.run(
+    userId, 'Uber', 22.0, 'weekly', 0
+  );
+  const uberId = uberResult.lastInsertRowid as number;
+
+  console.log(`Created income sources: Restaurant (id=${restaurantId}), Uber (id=${uberId})`);
+
   // ── Helper: date offset from today ─────────────────────────────────
 
   function daysAgo(n: number): string {
@@ -38,51 +58,51 @@ function main(): void {
   }
 
   // ── Shift definitions ─────────────────────────────────────────────
-  // [daysAgo, hours, overtime, tips]
-  const shiftDefs: Array<[number, number, number, number]> = [
-    // Week 6 (most recent, ~0-7 days ago) — 3 shifts
-    [2, 8, 0, 25],
-    [4, 6, 0, 15],
-    [6, 10, 2, 30],
+  // [daysAgo, hours, overtime, tips, income_source_id]
+  const shiftDefs: Array<[number, number, number, number, number]> = [
+    // Week 6 (most recent, ~0-7 days ago) — 3 shifts (Restaurant)
+    [2, 8, 0, 25, restaurantId],
+    [4, 6, 0, 15, restaurantId],
+    [6, 10, 2, 30, restaurantId],
 
-    // Week 5 (~7-14 days ago) — 3 shifts
-    [9, 8, 0, 20],
-    [11, 8, 0, 0],
-    [13, 12, 4, 40],
+    // Week 5 (~7-14 days ago) — 3 shifts (Restaurant)
+    [9, 8, 0, 20, restaurantId],
+    [11, 8, 0, 0, restaurantId],
+    [13, 12, 4, 40, restaurantId],
 
-    // Week 4 (~14-21 days ago) — 5 shifts (heavy)
-    [15, 8, 0, 10],
-    [16, 5, 0, 0],
-    [18, 10, 2, 35],
-    [19, 8, 0, 0],
-    [21, 8, 0, 50],
+    // Week 4 (~14-21 days ago) — 5 shifts (mixed)
+    [15, 8, 0, 10, restaurantId],
+    [16, 5, 0, 0, uberId],
+    [18, 10, 2, 35, restaurantId],
+    [19, 8, 0, 0, uberId],
+    [21, 8, 0, 50, restaurantId],
 
-    // Week 3 (~21-28 days ago) — 2 shifts (light)
-    [24, 8, 0, 15],
-    [27, 8, 0, 0],
+    // Week 3 (~21-28 days ago) — 2 shifts (Uber)
+    [24, 8, 0, 15, uberId],
+    [27, 8, 0, 0, uberId],
 
-    // Week 2 (~28-35 days ago) — 3 shifts
-    [29, 8, 0, 0],
-    [31, 5, 0, 25],
-    [34, 8, 0, 20],
+    // Week 2 (~28-35 days ago) — 3 shifts (mixed)
+    [29, 8, 0, 0, restaurantId],
+    [31, 5, 0, 25, uberId],
+    [34, 8, 0, 20, restaurantId],
 
-    // Week 1 (~35-42 days ago) — 4 shifts
-    [36, 8, 0, 10],
-    [37, 10, 2, 30],
-    [40, 8, 0, 0],
-    [42, 6, 0, 15],
+    // Week 1 (~35-42 days ago) — 4 shifts (Uber)
+    [36, 8, 0, 10, uberId],
+    [37, 10, 2, 30, uberId],
+    [40, 8, 0, 0, uberId],
+    [42, 6, 0, 15, restaurantId],
   ];
 
   const insertShift = db.prepare(
-    `INSERT INTO shifts (user_id, date, hours_worked, hourly_rate, tips, overtime_hours)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO shifts (user_id, date, hours_worked, hourly_rate, tips, overtime_hours, income_source_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
   const hourlyRate = 18.5;
   let shiftCount = 0;
 
-  for (const [days, hours, overtime, tips] of shiftDefs) {
-    insertShift.run(userId, daysAgo(days), hours, hourlyRate, tips, overtime);
+  for (const [days, hours, overtime, tips, sourceId] of shiftDefs) {
+    insertShift.run(userId, daysAgo(days), hours, hourlyRate, tips, overtime, sourceId);
     shiftCount++;
   }
 

@@ -132,6 +132,17 @@ router.get('/', (req: AuthRequest, res: Response): void => {
     return;
   }
 
+  // ── Optional source_id filter ─────────────────────────────────────
+  const sourceIdRaw = req.query.source_id as string | undefined;
+  let sourceId: number | null = null;
+  if (sourceIdRaw !== undefined) {
+    sourceId = parseInt(sourceIdRaw, 10);
+    if (isNaN(sourceId) || sourceId <= 0) {
+      res.status(400).json({ error: 'source_id must be a positive integer' });
+      return;
+    }
+  }
+
   // ── Get user's pay schedule ────────────────────────────────────────
   const user = db.prepare(
     'SELECT pay_schedule FROM users WHERE id = ?'
@@ -184,12 +195,24 @@ router.get('/', (req: AuthRequest, res: Response): void => {
   fiftySixDaysAgo.setDate(fiftySixDaysAgo.getDate() - 56);
   const historyStart = fiftySixDaysAgo.toISOString().split('T')[0];
 
-  const allShifts = db.prepare(
-    `SELECT date, hours_worked, hourly_rate, tips
+  let shiftsQuery: string;
+  let shiftsParams: unknown[];
+
+  if (sourceId !== null) {
+    shiftsQuery = `SELECT date, hours_worked, hourly_rate, tips
+     FROM shifts
+     WHERE user_id = ? AND income_source_id = ? AND date >= ?
+     ORDER BY date DESC`;
+    shiftsParams = [req.userId!, sourceId, historyStart];
+  } else {
+    shiftsQuery = `SELECT date, hours_worked, hourly_rate, tips
      FROM shifts
      WHERE user_id = ? AND date >= ?
-     ORDER BY date DESC`
-  ).all(req.userId!, historyStart) as { date: string; hours_worked: number; hourly_rate: number; tips: number }[];
+     ORDER BY date DESC`;
+    shiftsParams = [req.userId!, historyStart];
+  }
+
+  const allShifts = db.prepare(shiftsQuery).all(...shiftsParams) as { date: string; hours_worked: number; hourly_rate: number; tips: number }[];
 
   // ── Compute expected paycheck (weighted 4-week average) ────────────
   const expectedPaycheckAmount = computeWeighted4wkAvg(allShifts, today);
