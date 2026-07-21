@@ -49,6 +49,14 @@ function runMigrations(): void {
   } catch {
     // Column already exists — safe to ignore
   }
+
+  // Add income_source_id column to shifts
+  try {
+    db.exec(`ALTER TABLE shifts ADD COLUMN income_source_id INTEGER REFERENCES income_sources(id)`);
+    console.log('Migration: added income_source_id column to shifts');
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }
 
 function createTables(): void {
@@ -99,6 +107,16 @@ function createTables(): void {
       bill_id INTEGER NOT NULL REFERENCES bills(id),
       amount REAL NOT NULL,
       recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS income_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      hourly_rate REAL NOT NULL,
+      pay_schedule TEXT NOT NULL DEFAULT 'weekly',
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 

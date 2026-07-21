@@ -41,6 +41,13 @@ function validateShiftBody(body: Record<string, unknown>): string | null {
     return 'overtime_hours must be a non-negative number';
   }
 
+  // Optional: income_source_id (nullable)
+  if (body.income_source_id !== undefined && body.income_source_id !== null) {
+    if (typeof body.income_source_id !== 'number' || !Number.isInteger(body.income_source_id) || body.income_source_id <= 0) {
+      return 'income_source_id must be a positive integer or null';
+    }
+  }
+
   return null;
 }
 
@@ -57,13 +64,14 @@ router.post('/', (req: AuthRequest, res: Response): void => {
   const { date, hours_worked, hourly_rate } = req.body;
   const tips = typeof req.body.tips === 'number' ? req.body.tips : 0;
   const overtime_hours = typeof req.body.overtime_hours === 'number' ? req.body.overtime_hours : 0;
+  const income_source_id = typeof req.body.income_source_id === 'number' ? req.body.income_source_id : null;
 
   const db = getDb();
 
   const result = db.prepare(
-    `INSERT INTO shifts (user_id, date, hours_worked, hourly_rate, tips, overtime_hours)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(req.userId!, date, hours_worked, hourly_rate, tips, overtime_hours);
+    `INSERT INTO shifts (user_id, date, hours_worked, hourly_rate, tips, overtime_hours, income_source_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(req.userId!, date, hours_worked, hourly_rate, tips, overtime_hours, income_source_id);
 
   const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(result.lastInsertRowid);
 
@@ -149,12 +157,15 @@ router.put('/:id', (req: AuthRequest, res: Response): void => {
   const { date, hours_worked, hourly_rate } = req.body;
   const tips = typeof req.body.tips === 'number' ? req.body.tips : 0;
   const overtime_hours = typeof req.body.overtime_hours === 'number' ? req.body.overtime_hours : 0;
+  const income_source_id = req.body.income_source_id !== undefined
+    ? (typeof req.body.income_source_id === 'number' ? req.body.income_source_id : null)
+    : (existing as any).income_source_id ?? null;
 
   db.prepare(
     `UPDATE shifts
-     SET date = ?, hours_worked = ?, hourly_rate = ?, tips = ?, overtime_hours = ?
+     SET date = ?, hours_worked = ?, hourly_rate = ?, tips = ?, overtime_hours = ?, income_source_id = ?
      WHERE id = ? AND user_id = ?`
-  ).run(date, hours_worked, hourly_rate, tips, overtime_hours, id, req.userId!);
+  ).run(date, hours_worked, hourly_rate, tips, overtime_hours, income_source_id, id, req.userId!);
 
   const updated = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id);
   res.json(updated);
